@@ -265,6 +265,15 @@ func (factory *buildFactory) constructPlanFromConfig(
 		}
 
 	case planConfig.Try != nil:
+		attempts := planConfig.Try.Attempts
+		if attempts < 1 {
+			attempts = 1
+		}
+
+		for i := 0; i < attempts; i++ {
+
+		}
+
 		nextStep := factory.constructPlanFromConfig(
 			*planConfig.Try,
 			resources,
@@ -274,7 +283,13 @@ func (factory *buildFactory) constructPlanFromConfig(
 		plan = atc.Plan{
 			Location: planConfig.Location,
 			Try: &atc.TryPlan{
-				Step: nextStep,
+				Step: atc.Plan{
+					Location: planConfig.Location,
+					OnFailure: &atc.OnFailurePlan{
+						Step: nextStep,
+						Next: nextStep,
+					},
+				},
 			},
 		}
 

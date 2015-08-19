@@ -187,6 +187,9 @@ type PlanConfig struct {
 	// used on any step to interrupt the step after a given duration
 	Timeout string `yaml:"timeout,omitempty" json:"timeout,omitempty" mapstructure:"timeout"`
 
+	// used by Try for specifying number of times to attempt task
+	Attempts int `yaml:"attempts,omitempty" json:"attempts,omitempty" mapstructure:"attempts"`
+
 	// not present in yaml
 	Location *Location `yaml:"-" json:"-"`
 
