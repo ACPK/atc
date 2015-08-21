@@ -448,7 +448,7 @@ func (pdb *pipelineDB) GetResourceHistoryMaxID(resourceID int) (int, error) {
 
 	err := pdb.conn.QueryRow(`
 		SELECT COALESCE(MAX(id), 0) as id
-		FROM versioned_resources		
+		FROM versioned_resources
 		WHERE resource_id = $1
 		`, resourceID).Scan(&id)
 
@@ -1493,6 +1493,7 @@ func (pdb *pipelineDB) GetLatestInputVersions(jobName string, jobInputs []atc.Jo
 	}
 
 	var buildInputs []BuildInput
+	var jobInputsWithPassed []atc.JobInput
 
 	for _, jobInput := range jobInputs {
 		var source, version, metadata string
@@ -1511,59 +1512,60 @@ func (pdb *pipelineDB) GetLatestInputVersions(jobName string, jobInputs []atc.Jo
 		}
 
 		if len(jobInput.Passed) > 0 {
-			passedConstraints := []string{}
-
-			params := []interface{}{}
-
-			params = append(params, "succeeded")
-			params = append(params, resource.Name)
-
-			for _, passedConstraint := range jobInput.Passed {
-				params = append(params, passedConstraint)
-				nextParam := len(params)
-				passedConstraints = append(passedConstraints, fmt.Sprintf("j.name = $%d", nextParam))
-			}
-
-			params = append(params, len(passedConstraints))
-			lastParamIndex := len(params)
-
-			queryString := fmt.Sprintf(`
-					SELECT vr.id,
-						r.name,
-						vr.type,
-						vr.source,
-						vr.version,
-						vr.metadata
-					FROM jobs j
-					INNER JOIN builds b on j.id = b.job_id
-						AND b.status = $1
-					INNER JOIN build_outputs bo ON b.id = bo.build_id
-					INNER JOIN versioned_resources vr on bo.versioned_resource_id = vr.id
-					INNER JOIN resources r on vr.resource_id = r.id
-					WHERE r.name = $2
-						AND vr.enabled = true
-						AND (
-							%s
-						)
-					GROUP BY vr.id,
-						r.name,
-						vr.type,
-						vr.source,
-						vr.version,
-						vr.metadata
-					HAVING count(distinct(j.id)) = $%d
-					ORDER BY vr.id desc
-					LIMIT 1
-					`, strings.Join(passedConstraints, " OR "), lastParamIndex)
-
-			err = pdb.conn.QueryRow(queryString, params...).Scan(
-				&svr.ID,
-				&svr.Resource,
-				&svr.Type,
-				&source,
-				&version,
-				&metadata,
-			)
+			jobInputsWithPassed = append(jobInputsWithPassed, jobInput)
+			// passedConstraints := []string{}
+			//
+			// params := []interface{}{}
+			//
+			// params = append(params, "succeeded")
+			// params = append(params, resource.Name)
+			//
+			// for _, passedConstraint := range jobInput.Passed {
+			// 	params = append(params, passedConstraint)
+			// 	nextParam := len(params)
+			// 	passedConstraints = append(passedConstraints, fmt.Sprintf("j.name = $%d", nextParam))
+			// }
+			//
+			// params = append(params, len(passedConstraints))
+			// lastParamIndex := len(params)
+			//
+			// queryString := fmt.Sprintf(`
+			// 		SELECT vr.id,
+			// 			r.name,
+			// 			vr.type,
+			// 			vr.source,
+			// 			vr.version,
+			// 			vr.metadata
+			// 		FROM jobs j
+			// 		INNER JOIN builds b on j.id = b.job_id
+			// 			AND b.status = $1
+			// 		INNER JOIN build_outputs bo ON b.id = bo.build_id
+			// 		INNER JOIN versioned_resources vr on bo.versioned_resource_id = vr.id
+			// 		INNER JOIN resources r on vr.resource_id = r.id
+			// 		WHERE r.name = $2
+			// 			AND vr.enabled = true
+			// 			AND (
+			// 				%s
+			// 			)
+			// 		GROUP BY vr.id,
+			// 			r.name,
+			// 			vr.type,
+			// 			vr.source,
+			// 			vr.version,
+			// 			vr.metadata
+			// 		HAVING count(distinct(j.id)) = $%d
+			// 		ORDER BY vr.id desc
+			// 		LIMIT 1
+			// 		`, strings.Join(passedConstraints, " OR "), lastParamIndex)
+			//
+			// err = pdb.conn.QueryRow(queryString, params...).Scan(
+			// 	&svr.ID,
+			// 	&svr.Resource,
+			// 	&svr.Type,
+			// 	&source,
+			// 	&version,
+			// 	&metadata,
+			// )
 		} else {
 			err = pdb.conn.QueryRow(`
 					SELECT id, enabled, type, source, version, metadata
@@ -1573,38 +1575,104 @@ func (pdb *pipelineDB) GetLatestInputVersions(jobName string, jobInputs []atc.Jo
 					ORDER BY id DESC
 					LIMIT 1
 				`, resource.ID).Scan(&svr.ID, &svr.Enabled, &svr.Type, &source, &version, &metadata)
-		}
 
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return nil, ErrNoVersions
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return nil, ErrNoVersions
+				}
+
+				return nil, err
 			}
 
-			return nil, err
-		}
+			err = json.Unmarshal([]byte(source), &svr.Source)
+			if err != nil {
+				return nil, err
+			}
 
-		err = json.Unmarshal([]byte(source), &svr.Source)
-		if err != nil {
-			return nil, err
-		}
+			err = json.Unmarshal([]byte(version), &svr.Version)
+			if err != nil {
+				return nil, err
+			}
 
-		err = json.Unmarshal([]byte(version), &svr.Version)
-		if err != nil {
-			return nil, err
-		}
+			err = json.Unmarshal([]byte(metadata), &svr.Metadata)
+			if err != nil {
+				return nil, err
+			}
 
-		err = json.Unmarshal([]byte(metadata), &svr.Metadata)
-		if err != nil {
-			return nil, err
+			buildInputs = append(buildInputs, BuildInput{
+				Name:              jobInput.Name,
+				VersionedResource: svr.VersionedResource,
+			})
 		}
-
-		buildInputs = append(buildInputs, BuildInput{
-			Name:              jobInput.Name,
-			VersionedResource: svr.VersionedResource,
-		})
 	}
 
+	if len(jobInputsWithPassed) > 0 {
+
+		resourceNames := []interface{}{}
+		refs := []string{}
+
+		for i, jobInputWithPassed := range jobInputsWithPassed {
+			resourceNames = append(resourceNames, jobInputWithPassed.Resource)
+			refs = append(refs, fmt.Sprintf("$%d", i+1))
+		}
+
+		rows, err := pdb.conn.Query(`
+				select r.name,
+					vr.id as versioned_resource_id,
+					vr.version,
+					j.name,
+					b.id as build_id
+				FROM resources r
+				INNER JOIN versioned_resources vr on r.id = vr.resource_id
+				inner join build_outputs bo on vr.id = bo.versioned_resource_id
+				inner join builds b on bo.build_id = b.id
+					and b.status = 'succeeded'
+				inner join jobs j on b.job_id = j.id
+				WHERE r.name IN  (`+strings.Join(refs, ",")+`)
+				order by b.id desc
+		`, resourceNames...)
+
+		if err != nil {
+			return nil, err
+		}
+
+		var dbCandidateBuildInputs []candidateBuildInput
+
+		defer rows.Close()
+
+		for rows.Next() {
+			var cbi candidateBuildInput
+
+			err := rows.Scan(&cbi.ResourceName, &cbi.VersionedResourceID, &cbi.Version, &cbi.JobName, &cbi.BuildID)
+			if err != nil {
+				return nil, err
+			}
+
+			dbCandidateBuildInputs = append(dbCandidateBuildInputs, cbi)
+		}
+
+		if len(dbCandidateBuildInputs) == 0 {
+			return nil, ErrNoVersions
+		}
+		//
+		// for _, dbCandidateBuildInput := range dbCandidateBuildInputs {
+		// }
+
+		// fmt.Println("CANDIDATE THINGS: ", candidateBuildInputs)
+
+	}
+
+	// loop over things that have passed constraints
+
 	return buildInputs, nil
+}
+
+type candidateBuildInput struct {
+	ResourceName        string
+	VersionedResourceID int
+	Version             string
+	JobName             string
+	BuildID             int
 }
 
 func (pdb *pipelineDB) PauseJob(job string) error {
