@@ -315,6 +315,17 @@ var _ = Describe("Hijacking API", func() {
 				})
 			})
 
+			Context("when multiple containers are found", func() {
+				BeforeEach(func() {
+					err := worker.MultipleContainersError{}
+					fakeWorkerClient.LookupContainerReturns(nil, err)
+				})
+
+				FIt("returns 300 Multiple Choices", func() {
+					Ω(response.StatusCode).Should(Equal(http.StatusMultipleChoices))
+				})
+			})
+
 			Context("when the request payload is invalid", func() {
 				BeforeEach(func() {
 					requestPayload = "ß"

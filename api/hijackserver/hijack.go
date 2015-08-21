@@ -71,7 +71,15 @@ func (s *Server) hijack(w http.ResponseWriter, request hijackRequest) {
 	container, err := s.workerClient.LookupContainer(request.Worker)
 	if err != nil {
 		hLog.Error("failed-to-get-container", err)
-		http.Error(w, fmt.Sprintf("failed to get container: %s", err), http.StatusNotFound)
+		var errorType int
+
+		if _, ok := err.(worker.MultipleContainersError); ok {
+			errorType = http.StatusMultipleChoices
+		} else {
+			errorType = http.StatusNotFound
+		}
+
+		http.Error(w, fmt.Sprintf("failed to get container: %s", err), errorType)
 		return
 	}
 
