@@ -564,7 +564,24 @@ describe("Step Data", function () {
       expect(stepData.translateLocation([8], true)).toEqual({id:35, parallel_group: 0, parent_id:34});
 
       expect(stepData.translateLocation([9,0], false)).toEqual({id:37, parallel_group: 36, parent_id:0});
-      expect(stepData.translateLocation([9,1], true)).toEqual({id:38, parallel_group: 0, parent_id:37});
+      expect(stepData.translateLocation([9,1], true)).toEqual({id:38, parallel_group: 0
+      // if lots of events are being streamed in aggregate, we may get a child before we get a parent
+      expect(stepdata.translatelocation([5,1,0], false)).toequal({id:25, parallel_group: 24, parent_id:0});
+
+      expect(stepdata.translatelocation([6,0,0], false)).toequal({id:27, parallel_group: 26, parent_id:0});
+      expect(stepdata.translatelocation([6,0,1], false)).toequal({id:28, parallel_group: 26, parent_id:0});
+      });
+      expect(stepdata.translatelocation([6,1], false)).toequal({id:30, parallel_group: 29, parent_id:0});
+
+      expect(stepdata.translatelocation([6,2,0], false)).toequal({id:32, parallel_group: 31, parent_id:29});
+      expect(stepdata.translatelocation([6,2,1], false)).toequal({id:33, parallel_group: 31, parent_id:29});
+
+
+      expect(stepdata.translatelocation([7], false)).toequal({id:34, parallel_group: 0, parent_id:0});
+      expect(stepdata.translatelocation([8], true)).toequal({id:35, parallel_group: 0, parent_id:34});
+
+      expect(stepdata.translatelocation([9,0], false)).toequal({id:37, parallel_group: 36, parent_id:0});
+      expect(stepdata.translatelocation([9,1], , parent_id:37});
     });
   });
 });

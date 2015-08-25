@@ -142,20 +142,21 @@ svg .job.node.started .animation,
   }
 }
 
+
+
 @keyframes started-ripples {
   0% {
-    box-shadow: 0 0 0 -2px @base01, 0 0 0 0px @base0A, 0 0 0 2px @base01, 0 0 0 4px @base0A;
+    box-shadow: 0 0 0 -3px @base01, 0 0 0 0px @base0A, 0 0 0 3px @base01, 0 0 0 6px @base0A;
   }
 
   50% {
-    box-shadow: 0 0 0 0px @base01, 0 0 0 2px @base0A, 0 0 0 4px @base01, 0 0 0 6px fade(@base0A, 50%);
+    box-shadow: 0 0 0 0px @base01, 0 0 0 3px @base0A, 0 0 0 6px @base01, 0 0 0 9px fade(@base0A, 50%);
   }
 
   100% {
-    box-shadow: 0 0 0 2px @base01, 0 0 0 4px @base0A, 0 0 0 6px @base01, 0 0 0 8px transparent;
+    box-shadow: 0 0 0 3px @base01, 0 0 0 6px @base0A, 0 0 0 9px @base01, 0 0 0 12px transparent;
   }
 }
-
 
 
 .build-number {
