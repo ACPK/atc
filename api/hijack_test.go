@@ -317,9 +317,12 @@ var _ = Describe("Hijacking API", func() {
 			})
 
 			Context("when multiple containers are found", func() {
+				var handles []string
+
 				BeforeEach(func() {
+					handles = []string{"handle1", "handle2"}
 					err := worker.MultipleContainersError{
-						Handles: []string{"handle1", "handle2"},
+						Handles: handles,
 					}
 					fakeWorkerClient.LookupContainerReturns(nil, err)
 				})
@@ -340,6 +343,15 @@ var _ = Describe("Hijacking API", func() {
 
 					Ω(body).To(ContainSubstring("handle1"))
 					Ω(body).To(ContainSubstring("handle2"))
+				})
+
+				FIt("returns the found handles as a json array", func() {
+					var actualHandles []string
+					d := json.NewDecoder(response.Body)
+					err := d.Decode(&actualHandles)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(actualHandles).To(Equal(handles))
 				})
 
 			})
