@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -317,13 +318,30 @@ var _ = Describe("Hijacking API", func() {
 
 			Context("when multiple containers are found", func() {
 				BeforeEach(func() {
-					err := worker.MultipleContainersError{}
+					err := worker.MultipleContainersError{
+						Handles: []string{"handle1", "handle2"},
+					}
 					fakeWorkerClient.LookupContainerReturns(nil, err)
 				})
 
-				FIt("returns 300 Multiple Choices", func() {
+				It("returns 300 Multiple Choices", func() {
 					Ω(response.StatusCode).Should(Equal(http.StatusMultipleChoices))
 				})
+
+				It("returns Content-Type json", func() {
+					Ω(response.Header.Get("Content-Type")).Should(Equal("application/json"))
+				})
+
+				It("returns the found handles in the body", func() {
+					b, err := ioutil.ReadAll(response.Body)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					body := string(b)
+
+					Ω(body).To(ContainSubstring("handle1"))
+					Ω(body).To(ContainSubstring("handle2"))
+				})
+
 			})
 
 			Context("when the request payload is invalid", func() {
