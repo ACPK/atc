@@ -69,8 +69,9 @@ func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 		Stderr: step.Delegate.Stderr(),
 	}
 
-	step.container, err = step.WorkerClient.FindContainerForIdentifier(step.WorkerID)
+	step.container, _, err = step.WorkerClient.FindContainerForIdentifier(step.WorkerID)
 	if err == nil {
+		fmt.Printf("******* container found for step: %#v\n", step)
 		// container already exists; recover session
 
 		exitStatusProp, err := step.container.Property(taskExitStatusPropertyName)
@@ -103,6 +104,7 @@ func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 			return err
 		}
 	} else {
+		fmt.Printf("******* no container found for step: {%#v}: err: %s\n", step, err.Error())
 		// container does not exist; new session
 
 		config, err := step.ConfigSource.FetchConfig(step.repo)
@@ -114,7 +116,7 @@ func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 
 		step.Delegate.Initializing(config)
 
-		step.container, err = step.WorkerClient.CreateContainer(
+		step.container, _, err = step.WorkerClient.CreateContainer(
 			step.WorkerID,
 			worker.TaskContainerSpec{
 				Platform:   config.Platform,

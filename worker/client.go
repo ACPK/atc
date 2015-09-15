@@ -8,18 +8,18 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/concourse/atc"
+	"github.com/concourse/atc/db"
 )
 
 //go:generate counterfeiter . Client
 
 type Client interface {
-	CreateContainer(Identifier, ContainerSpec) (Container, error)
-	FindContainerForIdentifier(Identifier) (Container, error)
-	FindContainersForIdentifier(Identifier) ([]Container, error)
+	CreateContainer(Identifier, ContainerSpec) (Container, bool, error)
+	FindContainerForIdentifier(Identifier) (Container, bool, error)
 
 	// LookupContainer performs a lookup for a container with the provided handle.
-	// Returns (nil, garden.ContainerNotFoundError) if no container is found for the provided handle.
-	LookupContainer(string) (Container, error)
+	// Returns (nil, false, garden.ContainerNotFoundError) if no container is found for the provided handle.
+	LookupContainer(string) (Container, bool, error)
 
 	Name() string
 }
@@ -43,12 +43,14 @@ type Identifier struct {
 
 	BuildID int
 
-	Type ContainerType
+	Type db.ContainerType
 
 	StepLocation uint
 
 	CheckType   string
 	CheckSource atc.Source
+
+	WorkerName string
 }
 
 const propertyPrefix = "concourse:"
@@ -87,19 +89,6 @@ func (id Identifier) gardenProperties() garden.Properties {
 
 	return props
 }
-
-type ContainerType string
-
-func (containerType ContainerType) ToString() string {
-	return string(containerType)
-}
-
-const (
-	ContainerTypeCheck ContainerType = "check"
-	ContainerTypeGet   ContainerType = "get"
-	ContainerTypePut   ContainerType = "put"
-	ContainerTypeTask  ContainerType = "task"
-)
 
 type MultipleWorkersFoundContainerError struct {
 	Names []string

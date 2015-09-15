@@ -16,6 +16,46 @@ type FakeWorkerDB struct {
 		result1 []db.WorkerInfo
 		result2 error
 	}
+	GetWorkerStub        func(string) ([]db.WorkerInfo, bool, error)
+	getWorkerMutex       sync.RWMutex
+	getWorkerArgsForCall []struct {
+		arg1 string
+	}
+	getWorkerReturns struct {
+		result1 []db.WorkerInfo
+		result2 bool
+		result3 error
+	}
+	CreateContainerStub        func(db.ContainerInfo) (db.ContainerInfo, bool, error)
+	createContainerMutex       sync.RWMutex
+	createContainerArgsForCall []struct {
+		arg1 db.ContainerInfo
+	}
+	createContainerReturns struct {
+		result1 db.ContainerInfo
+		result2 bool
+		result3 error
+	}
+	GetContainerStub        func(string) (db.ContainerInfo, bool, error)
+	getContainerMutex       sync.RWMutex
+	getContainerArgsForCall []struct {
+		arg1 string
+	}
+	getContainerReturns struct {
+		result1 db.ContainerInfo
+		result2 bool
+		result3 error
+	}
+	FindContainerForIdentifierStub        func(db.ContainerIdentifier) (db.ContainerInfo, bool, error)
+	findContainerForIdentifierMutex       sync.RWMutex
+	findContainerForIdentifierArgsForCall []struct {
+		arg1 db.ContainerIdentifier
+	}
+	findContainerForIdentifierReturns struct {
+		result1 db.ContainerInfo
+		result2 bool
+		result3 error
+	}
 }
 
 func (fake *FakeWorkerDB) Workers() ([]db.WorkerInfo, error) {
@@ -41,6 +81,142 @@ func (fake *FakeWorkerDB) WorkersReturns(result1 []db.WorkerInfo, result2 error)
 		result1 []db.WorkerInfo
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeWorkerDB) GetWorker(arg1 string) ([]db.WorkerInfo, bool, error) {
+	fake.getWorkerMutex.Lock()
+	fake.getWorkerArgsForCall = append(fake.getWorkerArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	fake.getWorkerMutex.Unlock()
+	if fake.GetWorkerStub != nil {
+		return fake.GetWorkerStub(arg1)
+	} else {
+		return fake.getWorkerReturns.result1, fake.getWorkerReturns.result2, fake.getWorkerReturns.result3
+	}
+}
+
+func (fake *FakeWorkerDB) GetWorkerCallCount() int {
+	fake.getWorkerMutex.RLock()
+	defer fake.getWorkerMutex.RUnlock()
+	return len(fake.getWorkerArgsForCall)
+}
+
+func (fake *FakeWorkerDB) GetWorkerArgsForCall(i int) string {
+	fake.getWorkerMutex.RLock()
+	defer fake.getWorkerMutex.RUnlock()
+	return fake.getWorkerArgsForCall[i].arg1
+}
+
+func (fake *FakeWorkerDB) GetWorkerReturns(result1 []db.WorkerInfo, result2 bool, result3 error) {
+	fake.GetWorkerStub = nil
+	fake.getWorkerReturns = struct {
+		result1 []db.WorkerInfo
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
+}
+
+func (fake *FakeWorkerDB) CreateContainer(arg1 db.ContainerInfo) (db.ContainerInfo, bool, error) {
+	fake.createContainerMutex.Lock()
+	fake.createContainerArgsForCall = append(fake.createContainerArgsForCall, struct {
+		arg1 db.ContainerInfo
+	}{arg1})
+	fake.createContainerMutex.Unlock()
+	if fake.CreateContainerStub != nil {
+		return fake.CreateContainerStub(arg1)
+	} else {
+		return fake.createContainerReturns.result1, fake.createContainerReturns.result2, fake.createContainerReturns.result3
+	}
+}
+
+func (fake *FakeWorkerDB) CreateContainerCallCount() int {
+	fake.createContainerMutex.RLock()
+	defer fake.createContainerMutex.RUnlock()
+	return len(fake.createContainerArgsForCall)
+}
+
+func (fake *FakeWorkerDB) CreateContainerArgsForCall(i int) db.ContainerInfo {
+	fake.createContainerMutex.RLock()
+	defer fake.createContainerMutex.RUnlock()
+	return fake.createContainerArgsForCall[i].arg1
+}
+
+func (fake *FakeWorkerDB) CreateContainerReturns(result1 db.ContainerInfo, result2 bool, result3 error) {
+	fake.CreateContainerStub = nil
+	fake.createContainerReturns = struct {
+		result1 db.ContainerInfo
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
+}
+
+func (fake *FakeWorkerDB) GetContainer(arg1 string) (db.ContainerInfo, bool, error) {
+	fake.getContainerMutex.Lock()
+	fake.getContainerArgsForCall = append(fake.getContainerArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	fake.getContainerMutex.Unlock()
+	if fake.GetContainerStub != nil {
+		return fake.GetContainerStub(arg1)
+	} else {
+		return fake.getContainerReturns.result1, fake.getContainerReturns.result2, fake.getContainerReturns.result3
+	}
+}
+
+func (fake *FakeWorkerDB) GetContainerCallCount() int {
+	fake.getContainerMutex.RLock()
+	defer fake.getContainerMutex.RUnlock()
+	return len(fake.getContainerArgsForCall)
+}
+
+func (fake *FakeWorkerDB) GetContainerArgsForCall(i int) string {
+	fake.getContainerMutex.RLock()
+	defer fake.getContainerMutex.RUnlock()
+	return fake.getContainerArgsForCall[i].arg1
+}
+
+func (fake *FakeWorkerDB) GetContainerReturns(result1 db.ContainerInfo, result2 bool, result3 error) {
+	fake.GetContainerStub = nil
+	fake.getContainerReturns = struct {
+		result1 db.ContainerInfo
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
+}
+
+func (fake *FakeWorkerDB) FindContainerForIdentifier(arg1 db.ContainerIdentifier) (db.ContainerInfo, bool, error) {
+	fake.findContainerForIdentifierMutex.Lock()
+	fake.findContainerForIdentifierArgsForCall = append(fake.findContainerForIdentifierArgsForCall, struct {
+		arg1 db.ContainerIdentifier
+	}{arg1})
+	fake.findContainerForIdentifierMutex.Unlock()
+	if fake.FindContainerForIdentifierStub != nil {
+		return fake.FindContainerForIdentifierStub(arg1)
+	} else {
+		return fake.findContainerForIdentifierReturns.result1, fake.findContainerForIdentifierReturns.result2, fake.findContainerForIdentifierReturns.result3
+	}
+}
+
+func (fake *FakeWorkerDB) FindContainerForIdentifierCallCount() int {
+	fake.findContainerForIdentifierMutex.RLock()
+	defer fake.findContainerForIdentifierMutex.RUnlock()
+	return len(fake.findContainerForIdentifierArgsForCall)
+}
+
+func (fake *FakeWorkerDB) FindContainerForIdentifierArgsForCall(i int) db.ContainerIdentifier {
+	fake.findContainerForIdentifierMutex.RLock()
+	defer fake.findContainerForIdentifierMutex.RUnlock()
+	return fake.findContainerForIdentifierArgsForCall[i].arg1
+}
+
+func (fake *FakeWorkerDB) FindContainerForIdentifierReturns(result1 db.ContainerInfo, result2 bool, result3 error) {
+	fake.FindContainerForIdentifierStub = nil
+	fake.findContainerForIdentifierReturns = struct {
+		result1 db.ContainerInfo
+		result2 bool
+		result3 error
+	}{result1, result2, result3}
 }
 
 var _ worker.WorkerDB = new(FakeWorkerDB)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/concourse/atc"
+	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/metric"
 	"github.com/pivotal-golang/clock"
 )
@@ -68,7 +69,7 @@ func NewGardenWorker(
 	}
 }
 
-func (worker *gardenWorker) CreateContainer(id Identifier, spec ContainerSpec) (Container, error) {
+func (worker *gardenWorker) CreateContainer(id Identifier, spec ContainerSpec) (Container, bool, error) {
 	gardenSpec := garden.ContainerSpec{
 		Properties: id.gardenProperties(),
 	}
@@ -89,33 +90,33 @@ dance:
 			}
 		}
 
-		return nil, ErrUnsupportedResourceType
+		return nil, false, ErrUnsupportedResourceType
 
 	case TaskContainerSpec:
 		gardenSpec.RootFSPath = s.Image
 		gardenSpec.Privileged = s.Privileged
 
 	default:
-		return nil, fmt.Errorf("unknown container spec type: %T (%#v)", s, s)
+		return nil, false, fmt.Errorf("unknown container spec type: %T (%#v)", s, s)
 	}
 
 	gardenContainer, err := worker.gardenClient.Create(gardenSpec)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	return newGardenWorkerContainer(gardenContainer, worker.gardenClient, worker.clock)
 }
 
-func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container, error) {
+func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container, bool, error) {
 	containers, err := worker.gardenClient.Containers(id.gardenProperties())
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	switch len(containers) {
 	case 0:
-		return nil, ErrContainerNotFound
+		return nil, false, nil
 	case 1:
 		return newGardenWorkerContainer(containers[0], worker.gardenClient, worker.clock)
 	default:
@@ -125,33 +126,20 @@ func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container
 			handles = append(handles, c.Handle())
 		}
 
-		return nil, MultipleContainersError{
+		return nil, false, MultipleContainersError{
 			Handles: handles,
 		}
 	}
 }
 
-func (worker *gardenWorker) FindContainersForIdentifier(id Identifier) ([]Container, error) {
-	containers, err := worker.gardenClient.Containers(id.gardenProperties())
-	if err != nil {
-		return nil, err
-	}
-
-	gardenContainers := make([]Container, len(containers))
-	for i, c := range containers {
-		gardenContainers[i], err = newGardenWorkerContainer(c, worker.gardenClient, worker.clock)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return gardenContainers, nil
-}
-
-func (worker *gardenWorker) LookupContainer(handle string) (Container, error) {
+func (worker *gardenWorker) LookupContainer(handle string) (Container, bool, error) {
 	container, err := worker.gardenClient.Lookup(handle)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+
+	if _, ok := err.(garden.ContainerNotFoundError); ok {
+		return nil, false, nil
 	}
 	return newGardenWorkerContainer(container, worker.gardenClient, worker.clock)
 }
@@ -232,7 +220,11 @@ type gardenWorkerContainer struct {
 	identifier Identifier
 }
 
-func newGardenWorkerContainer(container garden.Container, gardenClient garden.Client, clock clock.Clock) (Container, error) {
+func newGardenWorkerContainer(
+	container garden.Container,
+	gardenClient garden.Client,
+	clock clock.Clock,
+) (Container, bool, error) {
 	workerContainer := &gardenWorkerContainer{
 		Container: container,
 
@@ -253,9 +245,9 @@ func newGardenWorkerContainer(container garden.Container, gardenClient garden.Cl
 	err := workerContainer.initializeIdentifier()
 	if err != nil {
 		workerContainer.Release()
-		return nil, err
+		return nil, false, err
 	}
-	return workerContainer, nil
+	return workerContainer, true, nil
 }
 
 func (container *gardenWorkerContainer) Destroy() error {
@@ -302,7 +294,7 @@ func (container *gardenWorkerContainer) initializeIdentifier() error {
 
 	typeKey := propertyPrefix + "type"
 	if properties[typeKey] != "" {
-		identifier.Type = ContainerType(properties[typeKey])
+		identifier.Type = db.ContainerType(properties[typeKey])
 	}
 
 	stepLocationKey := propertyPrefix + "location"

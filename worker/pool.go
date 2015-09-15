@@ -4,16 +4,20 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"sync"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"github.com/concourse/atc/db"
+	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter . WorkerProvider
 
 type WorkerProvider interface {
 	Workers() ([]Worker, error)
+	GetWorker(string) (Worker, bool, error)
+	CreateContainer(db.ContainerInfo) (db.ContainerInfo, bool, error)
+	FindContainerForIdentifier(Identifier) (db.ContainerInfo, bool, error)
+	GetContainer(string) (db.ContainerInfo, bool, error)
 }
 
 var ErrNoWorkers = errors.New("no workers")
@@ -38,25 +42,29 @@ func (err NoCompatibleWorkersError) Error() string {
 
 type Pool struct {
 	provider WorkerProvider
+	logger   lager.Logger
 
 	rand *rand.Rand
 }
 
-func NewPool(provider WorkerProvider) Client {
+func NewPool(provider WorkerProvider, logger lager.Logger) Client {
 	return &Pool{
 		provider: provider,
 		rand:     rand.New(rand.NewSource(time.Now().UnixNano())),
+		logger:   logger,
 	}
 }
 
-func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container, error) {
+func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container, bool, error) {
 	workers, err := pool.provider.Workers()
 	if err != nil {
-		return nil, err
+		fmt.Printf("********** error creating container %v\n", err)
+		return nil, false, err
 	}
 
 	if len(workers) == 0 {
-		return nil, ErrNoWorkers
+		fmt.Printf("********** error creating container %v\n", ErrNoWorkers)
+		return nil, false, ErrNoWorkers
 	}
 
 	compatibleWorkers := []Worker{}
@@ -67,7 +75,8 @@ func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 	}
 
 	if len(compatibleWorkers) == 0 {
-		return nil, NoCompatibleWorkersError{
+		fmt.Printf("********** no compatible workers")
+		return nil, false, NoCompatibleWorkersError{
 			Spec:    spec,
 			Workers: workers,
 		}
@@ -75,79 +84,51 @@ func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 
 	randomWorker := compatibleWorkers[pool.rand.Intn(len(compatibleWorkers))]
 
-	return randomWorker.CreateContainer(id, spec)
+	container, found, err := randomWorker.CreateContainer(id, spec)
+	if err != nil {
+		fmt.Printf("********** error creating container on worker %v\n", err)
+		return nil, found, err
+	}
+
+	containerInfo := db.ContainerInfo{
+		Handle:       container.Handle(),
+		Name:         id.Name,
+		PipelineName: id.PipelineName,
+		BuildID:      id.BuildID,
+		Type:         id.Type,
+		WorkerName:   randomWorker.Name(),
+	}
+
+	_, found, err = pool.provider.CreateContainer(containerInfo)
+	if err != nil {
+		fmt.Printf("********** error creating container in DB %v\n", err)
+		// TODO: should we release the container here?
+		// Any other cleanup to ensure the DB and real-life are in sync?
+		return nil, found, err
+	}
+	fmt.Printf("********** success creating container\n")
+	return container, found, nil
 }
 
-func (pool *Pool) FindContainerForIdentifier(id Identifier) (Container, error) {
-	workers, err := pool.provider.Workers()
+func (pool *Pool) FindContainerForIdentifier(id Identifier) (Container, bool, error) {
+	pool.logger.Info("finding container for identifier", lager.Data{"identifier": id})
+
+	containerInfo, found, err := pool.provider.FindContainerForIdentifier(id)
 	if err != nil {
-		return nil, err
+		return nil, found, err
 	}
 
-	if len(workers) == 0 {
-		return nil, ErrNoWorkers
+	worker, found, err := pool.provider.GetWorker(containerInfo.WorkerName)
+	if err != nil {
+		return nil, found, err
 	}
 
-	wg := new(sync.WaitGroup)
-	wg.Add(len(workers))
-
-	found := make(chan Container, len(workers))
-	multiErrs := make(chan MultipleContainersError, len(workers))
-
-	for _, worker := range workers {
-		go func(worker Worker) {
-			defer wg.Done()
-
-			container, err := worker.FindContainerForIdentifier(id)
-			if err == nil {
-				found <- container
-			} else if multi, ok := err.(MultipleContainersError); ok {
-				multiErrs <- multi
-			}
-		}(worker)
+	container, found, err := worker.LookupContainer(containerInfo.Handle)
+	if err != nil {
+		return nil, found, err
 	}
 
-	wg.Wait()
-
-	totalFound := len(found)
-	totalMulti := len(multiErrs)
-
-	if totalMulti != 0 {
-		allHandles := []string{}
-
-		for i := 0; i < totalMulti; i++ {
-			multiErr := <-multiErrs
-
-			allHandles = append(allHandles, multiErr.Handles...)
-		}
-
-		for i := 0; i < totalFound; i++ {
-			c := <-found
-			allHandles = append(allHandles, c.Handle())
-			c.Release()
-		}
-
-		return nil, MultipleContainersError{allHandles}
-	}
-
-	switch totalFound {
-	case 0:
-		return nil, ErrContainerNotFound
-	case 1:
-		return <-found, nil
-	default:
-		handles := make([]string, totalFound)
-
-		for i := 0; i < totalFound; i++ {
-			c := <-found
-
-			handles[i] = c.Handle()
-
-			c.Release()
-		}
-
-		return nil, MultipleContainersError{Handles: handles}
-	}
+	return container, found, nil
 }
 
 type workerErrorInfo struct {
@@ -155,147 +136,44 @@ type workerErrorInfo struct {
 	err        error
 }
 
-func (pool *Pool) FindContainersForIdentifier(id Identifier) ([]Container, error) {
-	workers, err := pool.provider.Workers()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(workers) == 0 {
-		return nil, ErrNoWorkers
-	}
-
-	wg := new(sync.WaitGroup)
-	wg.Add(len(workers))
-
-	found := make(chan []Container, len(workers))
-	errors := make(chan workerErrorInfo, len(workers))
-
-	for _, worker := range workers {
-		go func(worker Worker) {
-			defer wg.Done()
-
-			containers, err := worker.FindContainersForIdentifier(id)
-			found <- containers
-			if err != nil {
-				errors <- workerErrorInfo{
-					workerName: worker.Name(),
-					err:        err,
-				}
-			}
-		}(worker)
-	}
-
-	wg.Wait()
-
-	totalFound := len(found)
-
-	containers := []Container{}
-	for i := 0; i < totalFound; i++ {
-		foundContainers := <-found
-		for _, c := range foundContainers {
-			containers = append(containers, c)
-		}
-	}
-
-	totalErr := len(errors)
-	if len(errors) > 0 {
-		multiWorkerError := MultiWorkerError{}
-
-		for i := 0; i < totalErr; i++ {
-			e := <-errors
-			multiWorkerError.AddError(e.workerName, e.err)
-		}
-		return containers, multiWorkerError
-	}
-
-	return containers, nil
-}
-
 type foundContainer struct {
 	workerName string
 	container  Container
 }
 
-func (pool *Pool) LookupContainer(handle string) (Container, error) {
-	workers, err := pool.provider.Workers()
+func (pool *Pool) LookupContainer(handle string) (Container, bool, error) {
+	pool.logger.Info("looking up container", lager.Data{"handle": handle})
+
+	containerInfo, found, err := pool.provider.GetContainer(handle)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if !found {
+		return nil, false, nil
 	}
 
-	if len(workers) == 0 {
-		return nil, ErrNoWorkers
+	worker, found, err := pool.provider.GetWorker(containerInfo.WorkerName)
+	if err != nil {
+		return nil, false, err
+	}
+	// TODO: what does it mean to have a container belonging to a worker that
+	// does not exist in the DB
+	if !found {
+		return nil, false, nil
 	}
 
-	wg := new(sync.WaitGroup)
-	wg.Add(len(workers))
-
-	found := make(chan foundContainer, len(workers))
-	errors := make(chan workerErrorInfo, len(workers))
-
-	for _, worker := range workers {
-		go func(worker Worker) {
-			defer wg.Done()
-
-			container, err := worker.LookupContainer(handle)
-			if container != nil {
-				found <- foundContainer{
-					workerName: worker.Name(),
-					container:  container,
-				}
-			}
-			if err != nil {
-				_, ok := err.(garden.ContainerNotFoundError)
-				if !ok {
-					errors <- workerErrorInfo{
-						workerName: worker.Name(),
-						err:        err,
-					}
-				}
-			}
-		}(worker)
+	container, found, err := worker.LookupContainer(handle)
+	if err != nil {
+		return nil, false, err
 	}
 
-	wg.Wait()
-
-	totalErrors := len(errors)
-
-	var multiWorkerError *MultiWorkerError
-	if totalErrors != 0 {
-		allErrors := make(map[string]error, totalErrors)
-
-		for i := 0; i < totalErrors; i++ {
-			e := <-errors
-
-			allErrors[e.workerName] = e.err
-		}
-
-		multiWorkerError = &MultiWorkerError{allErrors}
+	// TODO: what does it mean to have a container in the DB that garden does not
+	// know about?
+	if !found {
+		return nil, false, nil
 	}
 
-	totalFound := len(found)
-	switch totalFound {
-	case 0:
-		if multiWorkerError != nil {
-			return nil, *multiWorkerError
-		} else {
-			return nil, garden.ContainerNotFoundError{}
-		}
-	case 1:
-		return (<-found).container, nil
-	default:
-		names := make([]string, totalFound)
-
-		for i := 0; i < totalFound; i++ {
-			c := <-found
-			names[i] = c.workerName
-			if c.container != nil {
-				c.container.Release()
-			}
-		}
-
-		return nil, MultipleWorkersFoundContainerError{Names: names}
-	}
+	return container, found, nil
 }
 
 func (pool *Pool) Name() string {

@@ -12,13 +12,38 @@ import (
 )
 
 func (s *Server) HijackContainer(w http.ResponseWriter, r *http.Request) {
-	hijackRequest, err := s.parseHijackRequest(r)
+	handle := r.FormValue(":id")
+
+	hLog := s.logger.Session("hijack", lager.Data{
+		"handle": handle,
+	})
+
+	hLog.Info("hijacking container")
+
+	_, found, err := s.db.GetContainer(handle)
 	if err != nil {
+		hLog.Error("Failed to lookup container", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		hLog.Info("Failed to find container")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	hijackRequest := hijackRequest{
+		ContainerHandle: handle,
+	}
+
+	err = json.NewDecoder(r.Body).Decode(&hijackRequest.Process)
+	if err != nil {
+		hLog.Error("malformed-process-spec", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	s.hijack(w, hijackRequest)
+	s.hijack(w, hijackRequest, hLog)
 }
 
 type hijackRequest struct {
@@ -26,41 +51,22 @@ type hijackRequest struct {
 	Process         atc.HijackProcessSpec
 }
 
-func (s *Server) parseHijackRequest(r *http.Request) (hijackRequest, error) {
-	handle := r.FormValue(":id")
-
-	hLog := s.logger.Session("hijack", lager.Data{
-		"handle": handle,
-	})
-
-	var processSpec atc.HijackProcessSpec
-	err := json.NewDecoder(r.Body).Decode(&processSpec)
-	if err != nil {
-		hLog.Error("malformed-process-spec", err)
-		return hijackRequest{}, fmt.Errorf("malformed process spec: %s", err)
-	}
-
-	return hijackRequest{
-		ContainerHandle: handle,
-		Process:         processSpec,
-	}, nil
-}
-
-func (s *Server) hijack(w http.ResponseWriter, request hijackRequest) {
-	hLog := s.logger.Session("hijack", lager.Data{
+func (s *Server) hijack(w http.ResponseWriter, request hijackRequest, hLog lager.Logger) {
+	hLog = hLog.Session("hijack", lager.Data{
 		"handle":  request.ContainerHandle,
 		"process": request.Process,
 	})
 
-	container, err := s.workerClient.LookupContainer(request.ContainerHandle)
+	container, found, err := s.workerClient.LookupContainer(request.ContainerHandle)
 	if err != nil {
 		hLog.Error("failed-to-get-container", err)
-		if _, ok := err.(garden.ContainerNotFoundError); ok {
-			http.Error(w, fmt.Sprintf("failed to get container: %s", err), http.StatusNotFound)
-		} else {
-			http.Error(w, fmt.Sprintf("failed to get container: %s", err), http.StatusInternalServerError)
-		}
+		http.Error(w, fmt.Sprintf("failed to get container: %s", err), http.StatusInternalServerError)
 		return
+	}
+
+	if !found {
+		hLog.Info("failed-to-get-container")
+		http.Error(w, fmt.Sprintf("failed to get container: %s", err), http.StatusNotFound)
 	}
 
 	defer container.Release()

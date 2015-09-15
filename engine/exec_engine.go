@@ -178,13 +178,14 @@ func (build *execBuild) buildStepFactory(logger lager.Logger, plan atc.Plan) exe
 	return exec.Identity{}
 }
 
-func (build *execBuild) taskIdentifier(name string, location event.OriginLocation) worker.Identifier {
+func (build *execBuild) taskIdentifier(name string, location event.OriginLocation, pipelineName string) worker.Identifier {
 	return worker.Identifier{
 		BuildID: build.buildID,
 
 		Type:         "task",
 		Name:         name,
 		StepLocation: location.ID,
+		PipelineName: pipelineName,
 	}
 }
 

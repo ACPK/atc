@@ -54,6 +54,11 @@ type DB interface {
 	Workers() ([]WorkerInfo, error) // auto-expires workers based on ttl
 	SaveWorker(WorkerInfo, time.Duration) error
 
+	Containers(ContainerIdentifier) ([]ContainerInfo, bool, error)
+	GetContainer(string) (ContainerInfo, bool, error)
+	CreateContainer(ContainerInfo) (ContainerInfo, bool, error)
+	FindContainerForIdentifier(ContainerIdentifier) (ContainerInfo, bool, error)
+
 	GetConfigByBuildID(buildID int) (atc.Config, ConfigVersion, error)
 }
 
@@ -131,4 +136,5 @@ type WorkerInfo struct {
 	ResourceTypes    []atc.WorkerResourceType
 	Platform         string
 	Tags             []string
+	Name             string
 }

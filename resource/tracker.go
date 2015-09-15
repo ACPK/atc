@@ -34,12 +34,12 @@ func NewTracker(workerClient worker.Client) Tracker {
 }
 
 func (tracker *tracker) Init(session Session, typ ResourceType, tags atc.Tags) (Resource, error) {
-	container, err := tracker.workerClient.FindContainerForIdentifier(session.ID)
+	container, _, err := tracker.workerClient.FindContainerForIdentifier(session.ID)
 
 	switch err {
 	case nil:
 	case worker.ErrContainerNotFound:
-		container, err = tracker.workerClient.CreateContainer(session.ID, worker.ResourceTypeContainerSpec{
+		container, _, err = tracker.workerClient.CreateContainer(session.ID, worker.ResourceTypeContainerSpec{
 			Type:      string(typ),
 			Ephemeral: session.Ephemeral,
 			Tags:      tags,

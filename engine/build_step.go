@@ -69,9 +69,11 @@ func (build *execBuild) buildTaskStep(logger lager.Logger, plan atc.Plan) exec.S
 		location = event.OriginLocationFrom(*plan.Location)
 	}
 
+	pipelineName := plan.Task.Pipeline
+
 	return build.factory.Task(
 		exec.SourceName(plan.Task.Name),
-		build.taskIdentifier(plan.Task.Name, location),
+		build.taskIdentifier(plan.Task.Name, location, pipelineName),
 		build.delegate.ExecutionDelegate(logger, *plan.Task, location),
 		exec.Privileged(plan.Task.Privileged),
 		plan.Task.Tags,

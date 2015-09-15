@@ -34,6 +34,7 @@ func NewHandler(
 
 	buildsDB buildserver.BuildsDB,
 	workerDB workerserver.WorkerDB,
+	containerDB containerserver.ContainerDB,
 	pipeDB pipes.PipeDB,
 	pipelinesDB db.PipelinesDB,
 
@@ -81,7 +82,7 @@ func NewHandler(
 
 	cliServer := cliserver.NewServer(logger, absCLIDownloadsDir)
 
-	containerServer := containerserver.NewServer(logger, workerClient)
+	containerServer := containerserver.NewServer(logger, workerClient, containerDB)
 
 	validate := func(handler http.Handler) http.Handler {
 		return auth.Handler{

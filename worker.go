@@ -9,6 +9,7 @@ type Worker struct {
 
 	Platform string   `json:"platform"`
 	Tags     []string `json:"tags"`
+	Name     string   `json:"name"`
 }
 
 type WorkerResourceType struct {

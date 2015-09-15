@@ -100,7 +100,14 @@ func (factory *gardenFactory) Put(id worker.Identifier, delegate PutDelegate, co
 	}
 }
 
-func (factory *gardenFactory) Task(sourceName SourceName, id worker.Identifier, delegate TaskDelegate, privileged Privileged, tags atc.Tags, configSource TaskConfigSource) StepFactory {
+func (factory *gardenFactory) Task(
+	sourceName SourceName,
+	id worker.Identifier,
+	delegate TaskDelegate,
+	privileged Privileged,
+	tags atc.Tags,
+	configSource TaskConfigSource,
+) StepFactory {
 
 	artifactsRoot := filepath.Join("/tmp", "build", factory.uuidGenerator())
 

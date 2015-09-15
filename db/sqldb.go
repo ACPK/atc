@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -614,10 +615,10 @@ func (db *SQLDB) GetBuildEvents(buildID int, from uint) (EventSource, error) {
 
 func (db *SQLDB) AbortBuild(buildID int) error {
 	_, err := db.conn.Exec(`
-		UPDATE builds
-		SET status = 'aborted'
-		WHERE id = $1
-	`, buildID)
+   UPDATE builds
+   SET status = 'aborted'
+   WHERE id = $1
+ `, buildID)
 	if err != nil {
 		return err
 	}
@@ -692,9 +693,9 @@ func (db *SQLDB) SaveWorker(info WorkerInfo, ttl time.Duration) error {
 	if ttl == 0 {
 		result, err := db.conn.Exec(`
 			UPDATE workers
-			SET expires = NULL, active_containers = $2, resource_types = $3, platform = $4, tags = $5
+			SET expires = NULL, active_containers = $2, resource_types = $3, platform = $4, tags = $5, name = $6
 			WHERE addr = $1
-		`, info.Addr, info.ActiveContainers, resourceTypes, info.Platform, tags)
+		`, info.Addr, info.ActiveContainers, resourceTypes, info.Platform, tags, info.Name)
 		if err != nil {
 			return err
 		}
@@ -706,9 +707,9 @@ func (db *SQLDB) SaveWorker(info WorkerInfo, ttl time.Duration) error {
 
 		if affected == 0 {
 			_, err := db.conn.Exec(`
-				INSERT INTO workers (addr, expires, active_containers, resource_types, platform, tags)
-				VALUES ($1, NULL, $2, $3, $4, $5)
-			`, info.Addr, info.ActiveContainers, resourceTypes, info.Platform, tags)
+				INSERT INTO workers (addr, expires, active_containers, resource_types, platform, tags, name)
+				VALUES ($1, NULL, $2, $3, $4, $5, $6)
+			`, info.Addr, info.ActiveContainers, resourceTypes, info.Platform, tags, info.Name)
 			if err != nil {
 				return err
 			}
@@ -720,9 +721,9 @@ func (db *SQLDB) SaveWorker(info WorkerInfo, ttl time.Duration) error {
 
 		result, err := db.conn.Exec(`
 			UPDATE workers
-			SET expires = NOW() + $2::INTERVAL, active_containers = $3, resource_types = $4, platform = $5, tags = $6
+			SET expires = NOW() + $2::INTERVAL, active_containers = $3, resource_types = $4, platform = $5, tags = $6, name = $7
 			WHERE addr = $1
-		`, info.Addr, interval, info.ActiveContainers, resourceTypes, info.Platform, tags)
+		`, info.Addr, interval, info.ActiveContainers, resourceTypes, info.Platform, tags, info.Name)
 		if err != nil {
 			return err
 		}
@@ -734,9 +735,9 @@ func (db *SQLDB) SaveWorker(info WorkerInfo, ttl time.Duration) error {
 
 		if affected == 0 {
 			_, err := db.conn.Exec(`
-				INSERT INTO workers (addr, expires, active_containers, resource_types, platform, tags)
-				VALUES ($1, NOW() + $2::INTERVAL, $3, $4, $5, $6)
-			`, info.Addr, interval, info.ActiveContainers, resourceTypes, info.Platform, tags)
+				INSERT INTO workers (addr, expires, active_containers, resource_types, platform, tags, name)
+				VALUES ($1, NOW() + $2::INTERVAL, $3, $4, $5, $6, $7)
+			`, info.Addr, interval, info.ActiveContainers, resourceTypes, info.Platform, tags, info.Name)
 			if err != nil {
 				return err
 			}
@@ -759,7 +760,7 @@ func (db *SQLDB) Workers() ([]WorkerInfo, error) {
 
 	// select remaining workers
 	rows, err := db.conn.Query(`
-		SELECT addr, active_containers, resource_types, platform, tags
+		SELECT addr, active_containers, resource_types, platform, tags, name
 		FROM workers
 	`)
 	if err != nil {
@@ -775,7 +776,7 @@ func (db *SQLDB) Workers() ([]WorkerInfo, error) {
 		var resourceTypes []byte
 		var tags []byte
 
-		err := rows.Scan(&info.Addr, &info.ActiveContainers, &resourceTypes, &info.Platform, &tags)
+		err := rows.Scan(&info.Addr, &info.ActiveContainers, &resourceTypes, &info.Platform, &tags, &info.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -794,6 +795,233 @@ func (db *SQLDB) Workers() ([]WorkerInfo, error) {
 	}
 
 	return infos, nil
+}
+
+func (db *SQLDB) GetWorker(name string) ([]WorkerInfo, bool, error) {
+	// reap expired workers
+	_, err := db.conn.Exec(`
+		DELETE FROM workers
+		WHERE expires IS NOT NULL
+		AND expires < NOW()
+	`)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// select remaining workers
+	rows, err := db.conn.Query(`
+		SELECT addr, active_containers, resource_types, platform, tags, name
+		FROM workers
+		WHERE name = $1
+	`, name)
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rows.Close()
+
+	infos := []WorkerInfo{}
+	for rows.Next() {
+		info := WorkerInfo{}
+
+		var resourceTypes []byte
+		var tags []byte
+
+		err := rows.Scan(&info.Addr, &info.ActiveContainers, &resourceTypes, &info.Platform, &tags, &info.Name)
+		if err != nil {
+			return nil, false, err
+		}
+
+		err = json.Unmarshal(resourceTypes, &info.ResourceTypes)
+		if err != nil {
+			return nil, false, err
+		}
+
+		err = json.Unmarshal(tags, &info.Tags)
+		if err != nil {
+			return nil, false, err
+		}
+
+		infos = append(infos, info)
+	}
+
+	return infos, true, nil
+}
+
+func (db *SQLDB) Containers(id ContainerIdentifier) ([]ContainerInfo, bool, error) {
+	whereCriteria := []string{}
+	params := []interface{}{}
+
+	if id.Name != "" {
+		whereCriteria = append(whereCriteria, fmt.Sprintf("name = $%d", len(params)+1))
+		params = append(params, id.Name)
+	}
+
+	if id.PipelineName != "" {
+		whereCriteria = append(whereCriteria, fmt.Sprintf("pipeline_name = $%d", len(params)+1))
+		params = append(params, id.PipelineName)
+	}
+
+	if id.BuildID != 0 {
+		whereCriteria = append(whereCriteria, fmt.Sprintf("build_id = $%d", len(params)+1))
+		params = append(params, id.BuildID)
+	}
+
+	if id.Type != "" {
+		whereCriteria = append(whereCriteria, fmt.Sprintf("type = $%d", len(params)+1))
+		params = append(params, id.Type.ToString())
+	}
+
+	if id.WorkerName != "" {
+		whereCriteria = append(whereCriteria, fmt.Sprintf("worker_name = $%d", len(params)+1))
+		params = append(params, id.WorkerName)
+	}
+
+	var rows *sql.Rows
+	var err error
+	if len(whereCriteria) > 0 {
+		rows, err = db.conn.Query(
+			fmt.Sprintf(`
+				SELECT handle, pipeline_name, type, name, build_id, worker_name
+				FROM containers
+				WHERE %s
+			`, strings.Join(whereCriteria, " AND ")),
+			params...)
+	} else {
+		rows, err = db.conn.Query(`
+		SELECT handle, pipeline_name, type, name, build_id, worker_name
+		FROM containers
+	`)
+	}
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+
+	defer rows.Close()
+
+	infos := []ContainerInfo{}
+	for rows.Next() {
+		info := ContainerInfo{}
+		var infoType string
+
+		err := rows.Scan(&info.Handle, &info.PipelineName, &infoType, &info.Name, &info.BuildID, &info.WorkerName)
+		if err != nil {
+			return nil, false, err
+		}
+
+		info.Type, err = containerTypeFromString(infoType)
+		if err != nil {
+			return nil, false, err
+		}
+
+		infos = append(infos, info)
+	}
+
+	return infos, true, nil
+}
+
+func (db *SQLDB) GetContainer(handle string) (ContainerInfo, bool, error) {
+	row := db.conn.QueryRow(`
+		SELECT handle, pipeline_name, type, name, build_id, worker_name
+		FROM containers c
+		WHERE c.handle = $1
+	`, handle)
+
+	// TODO handle case where multiple rows returned
+	info := ContainerInfo{}
+	var infoType string
+
+	err := row.Scan(&info.Handle, &info.PipelineName, &infoType, &info.Name, &info.BuildID, &info.WorkerName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ContainerInfo{}, false, nil
+		}
+		return ContainerInfo{}, false, err
+	}
+
+	info.Type, err = containerTypeFromString(infoType)
+	if err != nil {
+		return ContainerInfo{}, false, err
+	}
+
+	return info, true, nil
+}
+
+func (db *SQLDB) FindContainerForIdentifier(id ContainerIdentifier) (ContainerInfo, bool, error) {
+	containers, found, err := db.Containers(id)
+	if err != nil {
+		return ContainerInfo{}, false, err
+	}
+	if !found || len(containers) == 0 {
+		return ContainerInfo{}, false, nil
+	}
+	if len(containers) > 1 {
+		// TODO handle case where multiple rows returned
+	}
+	return containers[0], true, nil
+}
+
+// // TODO handle when only some of the identifiers are given
+// // TODO check that containers are currently valid
+// row := db.conn.QueryRow(`
+// 	SELECT handle, pipeline_name, type, name, build_id, worker_name
+// 	FROM containers c
+// 	WHERE c.name = $1, c.pipeline_name = $2, c.build_id = $3, c.type = $4
+// `, id.Name, id.PipelineName, id.BuildID, id.Type.ToString())
+
+// // TODO handle case where multiple row returned
+// info := ContainerInfo{}
+// var infoType string
+
+// err := row.Scan(&info.Handle, &info.PipelineName, &infoType, &info.Name, &info.BuildID, &info.WorkerName)
+// if err != nil {
+// 	if err == sql.ErrNoRows {
+// 		return ContainerInfo{}, true, ErrNoContainer // TODO ErrNoContainer is unneccessary
+// 	}
+// 	return ContainerInfo{}, false, err
+// }
+
+// info.Type, err = containerTypeFromString(infoType)
+// if err != nil {
+// 	return ContainerInfo{}, false, err
+// }
+// // if len(rows) > 1 {
+// // return ContainerInfo{}, true, ErrMultiContainers
+// // }
+// return info, true, nil
+// }
+
+func (db *SQLDB) CreateContainer(containerInfo ContainerInfo) (ContainerInfo, bool, error) {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return ContainerInfo{}, false, err
+	}
+
+	defer tx.Rollback()
+
+	container, success, err := scanContainer(tx.QueryRow(`
+		INSERT INTO containers (handle, name, pipeline_name, build_id, type, worker_name)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		`,
+		containerInfo.Handle,
+		containerInfo.Name,
+		containerInfo.PipelineName,
+		containerInfo.BuildID,
+		containerInfo.Type.ToString(),
+		containerInfo.WorkerName))
+	if err != nil {
+		return ContainerInfo{}, success, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return ContainerInfo{}, success, err
+	}
+
+	return container, success, nil
 }
 
 func (db *SQLDB) saveBuildEvent(tx *sql.Tx, buildID int, event atc.Event) error {
@@ -885,6 +1113,26 @@ func scanBuild(row scannable) (Build, error) {
 	}
 
 	return build, nil
+}
+
+func scanContainer(row scannable) (ContainerInfo, bool, error) {
+	container := ContainerInfo{}
+	err := row.Scan(
+		&container.Handle,
+		&container.Name,
+		&container.PipelineName,
+		&container.BuildID,
+		&container.Type,
+		&container.WorkerName,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ContainerInfo{}, false, nil
+		}
+		return ContainerInfo{}, false, err
+	}
+
+	return container, true, nil
 }
 
 func buildEventsChannel(buildID int) string {
