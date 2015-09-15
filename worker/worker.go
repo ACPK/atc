@@ -12,12 +12,12 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/concourse/atc"
+	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/metric"
 	"github.com/concourse/baggageclaim"
 	"github.com/pivotal-golang/clock"
 )
 
-var ErrContainerNotFound = errors.New("container not found")
 var ErrUnsupportedResourceType = errors.New("unsupported resource type")
 var ErrIncompatiblePlatform = errors.New("incompatible platform")
 var ErrMismatchedTags = errors.New("mismatched tags")
@@ -142,17 +142,18 @@ dance:
 	return newGardenWorkerContainer(gardenContainer, worker.gardenClient, worker.baggageclaimClient, worker.clock)
 }
 
-func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container, error) {
+func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container, bool, error) {
 	containers, err := worker.gardenClient.Containers(id.gardenProperties())
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	switch len(containers) {
 	case 0:
-		return nil, ErrContainerNotFound
+		return nil, false, nil
 	case 1:
-		return newGardenWorkerContainer(containers[0], worker.gardenClient, worker.baggageclaimClient, worker.clock)
+		container, err := newGardenWorkerContainer(containers[0], worker.gardenClient, worker.baggageclaimClient, worker.clock)
+		return container, true, err
 	default:
 		handles := []string{}
 
@@ -160,35 +161,24 @@ func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container
 			handles = append(handles, c.Handle())
 		}
 
-		return nil, MultipleContainersError{
+		return nil, false, MultipleContainersError{
 			Handles: handles,
 		}
 	}
 }
 
-func (worker *gardenWorker) FindContainersForIdentifier(id Identifier) ([]Container, error) {
-	containers, err := worker.gardenClient.Containers(id.gardenProperties())
+func (worker *gardenWorker) LookupContainer(handle string) (Container, bool, error) {
+	gardenContainer, err := worker.gardenClient.Lookup(handle)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	gardenContainers := make([]Container, len(containers))
-	for i, c := range containers {
-		gardenContainers[i], err = newGardenWorkerContainer(c, worker.gardenClient, worker.baggageclaimClient, worker.clock)
-		if err != nil {
-			return nil, err
-		}
+	if _, ok := err.(garden.ContainerNotFoundError); ok {
+		return nil, false, nil
 	}
 
-	return gardenContainers, nil
-}
-
-func (worker *gardenWorker) LookupContainer(handle string) (Container, error) {
-	container, err := worker.gardenClient.Lookup(handle)
-	if err != nil {
-		return nil, err
-	}
-	return newGardenWorkerContainer(container, worker.gardenClient, worker.baggageclaimClient, worker.clock)
+	container, err := newGardenWorkerContainer(gardenContainer, worker.gardenClient, worker.baggageclaimClient, worker.clock)
+	return container, true, err
 }
 
 func (worker *gardenWorker) ActiveContainers() int {
@@ -349,7 +339,7 @@ func (container *gardenWorkerContainer) initializeIdentifier() error {
 
 	typeKey := propertyPrefix + "type"
 	if properties[typeKey] != "" {
-		identifier.Type = ContainerType(properties[typeKey])
+		identifier.Type = db.ContainerType(properties[typeKey])
 	}
 
 	stepLocationKey := propertyPrefix + "location"

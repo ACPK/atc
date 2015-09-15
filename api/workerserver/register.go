@@ -10,6 +10,7 @@ import (
 	"github.com/concourse/atc"
 	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/metric"
+	"github.com/pivotal-golang/lager"
 )
 
 type IntMetric int
@@ -49,6 +50,10 @@ func (s *Server) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 		Containers: registration.ActiveContainers,
 	}.Emit(s.logger)
 
+	if registration.Name == "" {
+		registration.Name = registration.Addr
+	}
+
 	err = s.db.SaveWorker(db.WorkerInfo{
 		GardenAddr:       registration.GardenAddr,
 		BaggageclaimURL:  registration.BaggageclaimURL,
@@ -56,8 +61,10 @@ func (s *Server) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 		ResourceTypes:    registration.ResourceTypes,
 		Platform:         registration.Platform,
 		Tags:             registration.Tags,
+		Name:             registration.Name,
 	}, ttl)
 	if err != nil {
+		s.logger.Info("Failed to register worker", lager.Data{"err": err.Error()})
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

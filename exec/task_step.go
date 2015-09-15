@@ -80,14 +80,21 @@ func (step taskStep) Using(prev Step, repo *SourceRepository) Step {
 
 func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	var err error
+	var found bool
 
 	processIO := garden.ProcessIO{
 		Stdout: step.delegate.Stdout(),
 		Stderr: step.delegate.Stderr(),
 	}
+	// TODO: Not sure how to merge this. ask alex about commit: 5d2fd78c8ab74b581937daf69b7fb9976c8b2a73
+	// <<<<<<< HEAD
 
 	step.container, err = step.workerPool.FindContainerForIdentifier(step.containerID)
 	if err == nil {
+		// =======
+		// step.container, found, err = step.WorkerClient.FindContainerForIdentifier(step.WorkerID)
+		// if err == nil && found {
+		// >>>>>>> WIP
 		// container already exists; recover session
 
 		exitStatusProp, err := step.container.Property(taskExitStatusPropertyName)

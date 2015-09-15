@@ -52,7 +52,15 @@ type DB interface {
 	AbortNotifier(buildID int) (Notifier, error)
 
 	Workers() ([]WorkerInfo, error) // auto-expires workers based on ttl
+	GetWorker(workerName string) (WorkerInfo, bool, error)
 	SaveWorker(WorkerInfo, time.Duration) error
+
+	FindContainerInfosByIdentifier(ContainerIdentifier) ([]ContainerInfo, bool, error)
+	GetContainerInfo(string) (ContainerInfo, bool, error)
+	CreateContainerInfo(ContainerInfo) error
+	FindContainerInfoByIdentifier(ContainerIdentifier) (ContainerInfo, bool, error)
+
+	DeleteContainerInfo(string) error
 
 	GetConfigByBuildID(buildID int) (atc.Config, ConfigVersion, error)
 }
@@ -132,4 +140,5 @@ type WorkerInfo struct {
 	ResourceTypes    []atc.WorkerResourceType
 	Platform         string
 	Tags             []string
+	Name             string
 }
