@@ -63,15 +63,14 @@ func (step taskStep) Using(prev Step, repo *SourceRepository) Step {
 
 func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	var err error
+	var found bool
 
 	processIO := garden.ProcessIO{
 		Stdout: step.Delegate.Stdout(),
 		Stderr: step.Delegate.Stderr(),
 	}
-
-	step.container, _, err = step.WorkerClient.FindContainerForIdentifier(step.WorkerID)
-	if err == nil {
-		fmt.Printf("******* container found for step: %#v\n", step)
+	step.container, found, err = step.WorkerClient.FindContainerForIdentifier(step.WorkerID)
+	if err == nil && found {
 		// container already exists; recover session
 
 		exitStatusProp, err := step.container.Property(taskExitStatusPropertyName)
@@ -104,7 +103,6 @@ func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 			return err
 		}
 	} else {
-		fmt.Printf("******* no container found for step: {%#v}: err: %s\n", step, err.Error())
 		// container does not exist; new session
 
 		config, err := step.ConfigSource.FetchConfig(step.repo)

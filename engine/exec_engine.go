@@ -112,13 +112,15 @@ func (build *execBuild) Resume(logger lager.Logger) {
 	for {
 		select {
 		case err := <-exited:
-			if aborted || (err != nil && strings.Contains(err.Error(), exec.ErrStepTimedOut.Error())) {
+			var receivedTimeoutError bool
+			if err != nil {
+				receivedTimeoutError = strings.Contains(err.Error(), exec.ErrStepTimedOut.Error())
+			}
+			if aborted || receivedTimeoutError {
 				succeeded = false
-			} else {
-				if !source.Result(&succeeded) {
-					logger.Error("step-had-no-result", errors.New("step failed to provide us with a result"))
-					succeeded = false
-				}
+			} else if !source.Result(&succeeded) {
+				logger.Error("step-had-no-result", errors.New("step failed to provide us with a result"))
+				succeeded = false
 			}
 
 			build.delegate.Finish(logger.Session("finish"), err, succeeded, aborted)

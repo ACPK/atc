@@ -91,8 +91,9 @@ func (source aggregateStep) Result(x interface{}) bool {
 			anyIndicated = true
 			succeeded = succeeded && bool(s)
 		}
-
-		if !anyIndicated {
+		//TODO Is this how we want to address this?
+		//look at Tracker story #103643472
+		if !anyIndicated && len(source) != 0 {
 			return false
 		}
 

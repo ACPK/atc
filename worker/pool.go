@@ -58,12 +58,10 @@ func NewPool(provider WorkerProvider, logger lager.Logger) Client {
 func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container, bool, error) {
 	workers, err := pool.provider.Workers()
 	if err != nil {
-		fmt.Printf("********** error creating container %v\n", err)
 		return nil, false, err
 	}
 
 	if len(workers) == 0 {
-		fmt.Printf("********** error creating container %v\n", ErrNoWorkers)
 		return nil, false, ErrNoWorkers
 	}
 
@@ -75,7 +73,6 @@ func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 	}
 
 	if len(compatibleWorkers) == 0 {
-		fmt.Printf("********** no compatible workers")
 		return nil, false, NoCompatibleWorkersError{
 			Spec:    spec,
 			Workers: workers,
@@ -86,7 +83,6 @@ func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 
 	container, found, err := randomWorker.CreateContainer(id, spec)
 	if err != nil {
-		fmt.Printf("********** error creating container on worker %v\n", err)
 		return nil, found, err
 	}
 
@@ -101,12 +97,10 @@ func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 
 	_, found, err = pool.provider.CreateContainer(containerInfo)
 	if err != nil {
-		fmt.Printf("********** error creating container in DB %v\n", err)
 		// TODO: should we release the container here?
 		// Any other cleanup to ensure the DB and real-life are in sync?
 		return nil, found, err
 	}
-	fmt.Printf("********** success creating container\n")
 	return container, found, nil
 }
 
@@ -115,6 +109,9 @@ func (pool *Pool) FindContainerForIdentifier(id Identifier) (Container, bool, er
 
 	containerInfo, found, err := pool.provider.FindContainerForIdentifier(id)
 	if err != nil {
+		return nil, found, err
+	}
+	if !found {
 		return nil, found, err
 	}
 

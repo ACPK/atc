@@ -17,7 +17,6 @@ import (
 	"github.com/pivotal-golang/clock"
 )
 
-var ErrContainerNotFound = errors.New("container not found")
 var ErrUnsupportedResourceType = errors.New("unsupported resource type")
 
 const containerKeepalive = 30 * time.Second
