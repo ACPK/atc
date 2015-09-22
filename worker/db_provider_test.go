@@ -131,8 +131,9 @@ var _ = Describe("DBProvider", func() {
 				workerA.CreateReturns(fakeContainer, nil)
 				workerA.LookupReturns(fakeContainer, nil)
 
-				container, err := workers[0].CreateContainer(id, spec)
+				container, found, err := workers[0].CreateContainer(id, spec)
 				Ω(err).ShouldNot(HaveOccurred())
+				Ω(found).Should(BeTrue())
 
 				Ω(container.Handle()).Should(Equal("created-handle"))
 
@@ -157,8 +158,9 @@ var _ = Describe("DBProvider", func() {
 				workerA.ContainersReturns([]garden.Container{fakeContainer}, nil)
 				workerA.LookupReturns(fakeContainer, nil)
 
-				container, err := workers[0].FindContainerForIdentifier(Identifier{Name: "some-name"})
+				container, found, err := workers[0].FindContainerForIdentifier(Identifier{Name: "some-name"})
 				Ω(err).ShouldNot(HaveOccurred())
+				Ω(found).Should(BeTrue())
 
 				Ω(container.Handle()).Should(Equal("some-handle"))
 

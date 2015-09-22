@@ -190,7 +190,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-success-task-1")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeTask,
+						Type:    db.ContainerTypeTask,
 						Name:    "some-success-task-1",
 					}))
 					Ω(delegate).Should(Equal(fakeExecutionDelegate))
@@ -200,7 +200,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-input")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeGet,
+						Type:    db.ContainerTypeGet,
 						Name:    "some-input",
 					}))
 
@@ -215,7 +215,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-success-task-2")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeTask,
+						Type:    db.ContainerTypeTask,
 						Name:    "some-success-task-2",
 					}))
 					Ω(delegate).Should(Equal(fakeExecutionDelegate))
@@ -227,7 +227,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-success-task-3")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeTask,
+						Type:    db.ContainerTypeTask,
 						Name:    "some-success-task-3",
 					}))
 					Ω(delegate).Should(Equal(fakeExecutionDelegate))
@@ -308,7 +308,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-input")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeGet,
+						Type:    db.ContainerTypeGet,
 						Name:    "some-input",
 					}))
 
@@ -323,7 +323,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-completion-task")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeTask,
+						Type:    db.ContainerTypeTask,
 						Name:    "some-completion-task",
 					}))
 					Ω(delegate).Should(Equal(fakeExecutionDelegate))
@@ -338,7 +338,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-failure-task")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeTask,
+						Type:    db.ContainerTypeTask,
 						Name:    "some-failure-task",
 					}))
 					Ω(delegate).Should(Equal(fakeExecutionDelegate))
@@ -353,7 +353,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-success-task")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeTask,
+						Type:    db.ContainerTypeTask,
 						Name:    "some-success-task",
 					}))
 					Ω(delegate).Should(Equal(fakeExecutionDelegate))
@@ -368,7 +368,7 @@ var _ = Describe("Exec Engine With Hooks", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-next-task")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeTask,
+						Type:    db.ContainerTypeTask,
 						Name:    "some-next-task",
 					}))
 					Ω(delegate).Should(Equal(fakeExecutionDelegate))

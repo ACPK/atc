@@ -18,6 +18,14 @@ func (s *Server) HijackContainer(w http.ResponseWriter, r *http.Request) {
 		"handle": handle,
 	})
 
+	var processSpec atc.HijackProcessSpec
+	err := json.NewDecoder(r.Body).Decode(&processSpec)
+	if err != nil {
+		hLog.Error("malformed-process-spec", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	hLog.Info("hijacking container")
 
 	_, found, err := s.db.GetContainer(handle)
@@ -34,13 +42,7 @@ func (s *Server) HijackContainer(w http.ResponseWriter, r *http.Request) {
 
 	hijackRequest := hijackRequest{
 		ContainerHandle: handle,
-	}
-
-	err = json.NewDecoder(r.Body).Decode(&hijackRequest.Process)
-	if err != nil {
-		hLog.Error("malformed-process-spec", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		Process:         processSpec,
 	}
 
 	s.hijack(w, hijackRequest, hLog)

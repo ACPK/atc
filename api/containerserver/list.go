@@ -27,6 +27,8 @@ func (s *Server) ListContainers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+
 	containers, found, err := s.db.Containers(containerIdentifier)
 	if err != nil {
 		hLog.Error("Failed to lookup containers", err)

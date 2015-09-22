@@ -87,7 +87,7 @@ var _ = Describe("Exec Engine Locations", func() {
 				Ω(sourceName).Should(Equal(exec.SourceName("some input")))
 				Ω(workerID).Should(Equal(worker.Identifier{
 					BuildID: 84,
-					Type:    worker.ContainerTypeGet,
+					Type:    db.ContainerTypeGet,
 					Name:    "some input",
 				}))
 
@@ -138,7 +138,7 @@ var _ = Describe("Exec Engine Locations", func() {
 				workerID, delegate, _, _, _ := fakeFactory.PutArgsForCall(0)
 				Ω(workerID).Should(Equal(worker.Identifier{
 					BuildID: 84,
-					Type:    worker.ContainerTypePut,
+					Type:    db.ContainerTypePut,
 					Name:    "some output",
 				}))
 
@@ -191,7 +191,7 @@ var _ = Describe("Exec Engine Locations", func() {
 				Ω(sourceName).Should(Equal(exec.SourceName("some task")))
 				Ω(workerID).Should(Equal(worker.Identifier{
 					BuildID: 84,
-					Type:    worker.ContainerTypeTask,
+					Type:    db.ContainerTypeTask,
 					Name:    "some task",
 				}))
 
@@ -243,7 +243,7 @@ var _ = Describe("Exec Engine Locations", func() {
 				Ω(sourceName).Should(Equal(exec.SourceName("some input")))
 				Ω(workerID).Should(Equal(worker.Identifier{
 					BuildID: 84,
-					Type:    worker.ContainerTypeGet,
+					Type:    db.ContainerTypeGet,
 					Name:    "some input",
 				}))
 

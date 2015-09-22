@@ -14,6 +14,7 @@ type Server struct {
 	db ContainerDB
 }
 
+//go:generate counterfeiter . ContainerDB
 type ContainerDB interface {
 	GetContainer(handle string) (db.ContainerInfo, bool, error)
 	Containers(db.ContainerIdentifier) ([]db.ContainerInfo, bool, error)

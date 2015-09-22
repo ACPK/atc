@@ -101,6 +101,7 @@ func (pool *Pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 		// Any other cleanup to ensure the DB and real-life are in sync?
 		return nil, found, err
 	}
+
 	return container, found, nil
 }
 
@@ -153,10 +154,11 @@ func (pool *Pool) LookupContainer(handle string) (Container, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	// TODO: what does it mean to have a container belonging to a worker that
-	// does not exist in the DB
 	if !found {
-		return nil, false, nil
+		err = db.ErrDBGardenMismatch
+		pool.logger.Error("found container belonging to worker that does not exist in the db",
+			err, lager.Data{"workerName": containerInfo.WorkerName})
+		return nil, false, err
 	}
 
 	container, found, err := worker.LookupContainer(handle)
@@ -164,9 +166,10 @@ func (pool *Pool) LookupContainer(handle string) (Container, bool, error) {
 		return nil, false, err
 	}
 
-	// TODO: what does it mean to have a container in the DB that garden does not
-	// know about?
 	if !found {
+		err = db.ErrDBGardenMismatch
+		pool.logger.Error("found container in db that does not exist in garden",
+			err, lager.Data{"containerName": containerInfo.Name})
 		return nil, false, nil
 	}
 

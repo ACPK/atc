@@ -151,7 +151,7 @@ var _ = Describe("Exec Engine with Timeout", func() {
 					workerID, delegate, resourceConfig, _, _ := fakeFactory.PutArgsForCall(0)
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID:      84,
-						Type:         worker.ContainerTypePut,
+						Type:         db.ContainerTypePut,
 						Name:         "some-put",
 						StepLocation: 1,
 					}))
@@ -271,7 +271,7 @@ var _ = Describe("Exec Engine with Timeout", func() {
 					Ω(sourceName).Should(Equal(exec.SourceName("some-input")))
 					Ω(workerID).Should(Equal(worker.Identifier{
 						BuildID: 84,
-						Type:    worker.ContainerTypeGet,
+						Type:    db.ContainerTypeGet,
 						Name:    "some-input",
 					}))
 

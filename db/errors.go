@@ -12,3 +12,5 @@ var ErrLockRowNotPresentOrAlreadyDeleted = errors.New("lock could not be acquire
 var ErrLockNotAvailable = errors.New("lock is currently held and cannot be immediately acquired")
 
 var ErrNoContainer = errors.New("no container found")
+
+var ErrDBGardenMismatch = errors.New("discrepency between db and garden worker containers found")

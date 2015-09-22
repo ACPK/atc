@@ -160,6 +160,7 @@ func dbSharedBehavior(database *dbSharedBehaviorInput) func() {
 				},
 				Platform: "webos",
 				Tags:     []string{"palm", "was", "great"},
+				Name:     "workerName1",
 			}
 
 			infoB := db.WorkerInfo{
@@ -170,6 +171,7 @@ func dbSharedBehavior(database *dbSharedBehaviorInput) func() {
 				},
 				Platform: "plan9",
 				Tags:     []string{"russ", "cox", "was", "here"},
+				Name:     "workerName2",
 			}
 
 			By("persisting workers with no TTLs")
