@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/migration"
 	gclient "github.com/cloudfoundry-incubator/garden/client"
 	gconn "github.com/cloudfoundry-incubator/garden/client/connection"
 	httpmetrics "github.com/codahale/http-handlers/metrics"
@@ -36,7 +35,6 @@ import (
 	"github.com/concourse/atc/builds"
 	"github.com/concourse/atc/config"
 	Db "github.com/concourse/atc/db"
-	"github.com/concourse/atc/db/migrations"
 	"github.com/concourse/atc/engine"
 	"github.com/concourse/atc/exec"
 	"github.com/concourse/atc/metric"
@@ -267,22 +265,11 @@ func main() {
 
 	var err error
 
-	var dbConn Db.Conn
-
-	for {
-		dbConn, err = migration.Open(*sqlDriver, *sqlDataSource, migrations.Migrations)
-		if err != nil {
-			if strings.Contains(err.Error(), " dial ") {
-				logger.Error("failed-to-open-db", err)
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			fatal(err)
-		}
-
-		break
+	dbConn, err := Db.RunMigrations(*sqlDriver, *sqlDataSource, logger)
+	if err != nil {
+		fatal(err)
 	}
+	logger.Info("running migrations completed successfully")
 
 	listener := pq.NewListener(*sqlDataSource, time.Second, time.Minute, nil)
 	bus := Db.NewNotificationsBus(listener, dbConn)

@@ -2,3 +2,4 @@
 .DS_Store
 /README.html
 cmd/atc/atc
+cmd/migrator/migrator
