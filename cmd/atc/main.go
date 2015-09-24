@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -220,6 +221,12 @@ var riemannAttributes = flag.String(
 	"Comma-separated list of key-value pairs to attach to all emitted metrics, e.g. a=b,c=d.",
 )
 
+var skipMigrations = flag.Bool(
+	"skipMigrations",
+	false,
+	"skip database migrations when ATC starts up",
+)
+
 func main() {
 	flag.Parse()
 
@@ -269,19 +276,39 @@ func main() {
 
 	var dbConn Db.Conn
 
-	for {
-		dbConn, err = migration.Open(*sqlDriver, *sqlDataSource, migrations.Migrations)
-		if err != nil {
-			if strings.Contains(err.Error(), " dial ") {
-				logger.Error("failed-to-open-db", err)
-				time.Sleep(5 * time.Second)
-				continue
+	// TODO [#103951720]: Remove duplication
+	if *skipMigrations {
+		logger.Info("skipping migrations")
+		for {
+			dbConn, err = sql.Open(*sqlDriver, *sqlDataSource)
+			if err != nil {
+				if strings.Contains(err.Error(), " dial ") {
+					logger.Error("failed-to-open-db", err)
+					time.Sleep(5 * time.Second)
+					continue
+				}
+
+				fatal(err)
 			}
 
-			fatal(err)
+			break
 		}
+	} else {
+		logger.Info("running migrations")
+		for {
+			dbConn, err = migration.Open(*sqlDriver, *sqlDataSource, migrations.Migrations)
+			if err != nil {
+				if strings.Contains(err.Error(), " dial ") {
+					logger.Error("failed-to-open-db", err)
+					time.Sleep(5 * time.Second)
+					continue
+				}
 
-		break
+				fatal(err)
+			}
+
+			break
+		}
 	}
 
 	listener := pq.NewListener(*sqlDataSource, time.Second, time.Minute, nil)
