@@ -94,7 +94,26 @@ func (pool *pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 		return nil, err
 	}
 
-	return worker.CreateContainer(id, spec)
+	container, err := worker.CreateContainer(id, spec)
+	if err != nil {
+		return nil, err
+	}
+
+	containerInfo := db.ContainerInfo{
+		Handle:       container.Handle(),
+		Name:         id.Name,
+		PipelineName: id.PipelineName,
+		BuildID:      id.BuildID,
+		Type:         id.Type,
+		WorkerName:   worker.Name(),
+	}
+
+	err = pool.provider.CreateContainerInfo(containerInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return container, nil
 }
 
 func (pool *pool) FindContainerForIdentifier(id Identifier) (Container, bool, error) {

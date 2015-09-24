@@ -448,7 +448,7 @@ var _ = Describe("Worker", func() {
 
 				JustBeforeEach(func() {
 					var err error
-					foundContainer, err = worker.LookupContainer(handle)
+					foundContainer, _, err = worker.LookupContainer(handle)
 					Ω(err).ShouldNot(HaveOccurred())
 				})
 

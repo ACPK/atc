@@ -162,7 +162,7 @@ var _ = Describe("Workers API", func() {
 
 						savedInfo, savedTTL := workerDB.SaveWorkerArgsForCall(0)
 						Ω(savedInfo).Should(Equal(db.WorkerInfo{
-							Addr:             "1.2.3.4:7777",
+							GardenAddr:       "1.2.3.4:7777",
 							Name:             "1.2.3.4:7777",
 							BaggageclaimURL:  "5.6.7.8:7788",
 							ActiveContainers: 2,
@@ -179,7 +179,8 @@ var _ = Describe("Workers API", func() {
 				Context("when the name is provided", func() {
 					BeforeEach(func() {
 						worker = atc.Worker{
-							Addr:             "1.2.3.4:7777",
+							GardenAddr:       "1.2.3.4:7777",
+							BaggageclaimURL:  "5.6.7.8:7788",
 							ActiveContainers: 2,
 							ResourceTypes: []atc.WorkerResourceType{
 								{Type: "some-resource", Image: "some-resource-image"},
@@ -195,7 +196,7 @@ var _ = Describe("Workers API", func() {
 
 						savedInfo, savedTTL := workerDB.SaveWorkerArgsForCall(0)
 						Ω(savedInfo).Should(Equal(db.WorkerInfo{
-							Addr:             "1.2.3.4:7777",
+							GardenAddr:       "1.2.3.4:7777",
 							Name:             "poem",
 							BaggageclaimURL:  "5.6.7.8:7788",
 							ActiveContainers: 2,

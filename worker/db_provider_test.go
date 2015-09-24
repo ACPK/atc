@@ -109,7 +109,6 @@ var _ = Describe("DBProvider", func() {
 					},
 					{
 						GardenAddr:       workerAAddr,
-						BaggageclaimURL:  workerABaggageclaimURL,
 						ActiveContainers: 2,
 						ResourceTypes: []atc.WorkerResourceType{
 							{Type: "some-resource-b", Image: "some-image-b"},

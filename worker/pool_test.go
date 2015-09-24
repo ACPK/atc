@@ -72,7 +72,6 @@ var _ = Describe("Pool", func() {
 				workerC.CreateContainerReturns(fakeContainer, nil)
 
 				fakeProvider.WorkersReturns([]Worker{workerA, workerB, workerC}, nil)
-				fakeProvider.CreateContainerInfoReturns(nil)
 			})
 
 			It("succeeds", func() {
@@ -99,6 +98,16 @@ var _ = Describe("Pool", func() {
 					createdContainer, createErr := pool.CreateContainer(id, spec)
 					Ω(createErr).ShouldNot(HaveOccurred())
 					Ω(createdContainer).Should(Equal(fakeContainer))
+
+					Ω(fakeProvider.CreateContainerInfoCallCount()).Should(Equal(i + 1))
+					actualContainerInfo := fakeProvider.CreateContainerInfoArgsForCall(i)
+					Ω(actualContainerInfo).Should(Equal(db.ContainerInfo{
+						Handle:       createdContainer.Handle(),
+						Name:         id.Name,
+						PipelineName: id.PipelineName,
+						BuildID:      id.BuildID,
+						Type:         id.Type,
+					}))
 				}
 
 				Ω(workerA.CreateContainerCallCount()).Should(BeNumerically("~", workerB.CreateContainerCallCount(), 50))

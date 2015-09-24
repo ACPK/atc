@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -706,7 +705,7 @@ func (db *SQLDB) SaveWorker(info WorkerInfo, ttl time.Duration) error {
 		if affected == 0 {
 			_, err := db.conn.Exec(`
 				INSERT INTO workers (addr, expires, active_containers, resource_types, platform, tags, baggageclaim_url, name)
-				VALUES ($1, NULL, $2, $3, $4, $5, $6)
+				VALUES ($1, NULL, $2, $3, $4, $5, $6, $7)
 			`, info.GardenAddr, info.ActiveContainers, resourceTypes, info.Platform, tags, info.BaggageclaimURL, info.Name)
 			if err != nil {
 				return err
@@ -814,7 +813,7 @@ func (db *SQLDB) GetWorker(name string) (WorkerInfo, bool, error) {
 		SELECT addr, active_containers, resource_types, platform, tags, name
 		FROM workers
 		WHERE name = $1
-	`, name).Scan(&info.Addr, &info.ActiveContainers, &resourceTypes, &info.Platform, &tags, &info.Name)
+	`, name).Scan(&info.GardenAddr, &info.ActiveContainers, &resourceTypes, &info.Platform, &tags, &info.Name)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -921,8 +920,6 @@ func (db *SQLDB) FindContainerInfosByIdentifier(id ContainerIdentifier) ([]Conta
 
 	return infos, true, nil
 }
-
-var ErrMultipleContainersFound = errors.New("multiple containers found for given identifier")
 
 func (db *SQLDB) FindContainerInfoByIdentifier(id ContainerIdentifier) (ContainerInfo, bool, error) {
 	containers, found, err := db.FindContainerInfosByIdentifier(id)

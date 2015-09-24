@@ -77,7 +77,7 @@ func (provider *dbProvider) GetWorker(name string) (Worker, bool, error) {
 
 	tikTok := clock.NewClock()
 
-	worker := provider.newGardenWorker(workerInfo.Addr, tikTok, workerInfo)
+	worker := provider.newGardenWorker(workerInfo.GardenAddr, tikTok, workerInfo)
 
 	return worker, found, nil
 }
@@ -141,6 +141,6 @@ func (provider *dbProvider) newGardenWorker(addr string, tikTok clock.Clock, inf
 		info.ResourceTypes,
 		info.Platform,
 		info.Tags,
-		info.Addr,
+		info.GardenAddr,
 	)
 }

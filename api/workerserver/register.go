@@ -51,7 +51,7 @@ func (s *Server) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 	}.Emit(s.logger)
 
 	if registration.Name == "" {
-		registration.Name = registration.Addr
+		registration.Name = registration.GardenAddr
 	}
 
 	err = s.db.SaveWorker(db.WorkerInfo{
