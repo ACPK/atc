@@ -303,6 +303,7 @@ func main() {
 				logger.Session("garden-connection"),
 			)),
 			bclient.New(*baggageclaimURL),
+			db,
 			clock.NewClock(),
 			-1,
 			resourceTypesNG,

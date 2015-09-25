@@ -20,9 +20,11 @@ import (
 type WorkerDB interface {
 	Workers() ([]db.WorkerInfo, error)
 	GetWorker(string) (db.WorkerInfo, bool, error)
-	CreateContainerInfo(db.ContainerInfo) error
+	CreateContainerInfo(db.ContainerInfo, time.Duration) error
 	GetContainerInfo(string) (db.ContainerInfo, bool, error)
 	FindContainerInfoByIdentifier(db.ContainerIdentifier) (db.ContainerInfo, bool, error)
+
+	UpdateExpiresAtOnContainerInfo(handle string, ttl time.Duration) error
 }
 
 var ErrMultipleWorkersWithName = errors.New("More than one worker has given worker name")
@@ -82,10 +84,6 @@ func (provider *dbProvider) GetWorker(name string) (Worker, bool, error) {
 	return worker, found, nil
 }
 
-func (provider *dbProvider) CreateContainerInfo(containerInfo db.ContainerInfo) error {
-	return provider.db.CreateContainerInfo(containerInfo)
-}
-
 func (provider *dbProvider) FindContainerInfoForIdentifier(id Identifier) (db.ContainerInfo, bool, error) {
 	containerIdentifier := db.ContainerIdentifier{
 		Name:         id.Name,
@@ -136,6 +134,7 @@ func (provider *dbProvider) newGardenWorker(addr string, tikTok clock.Clock, inf
 	return NewGardenWorker(
 		gclient.New(gardenConn),
 		bClient,
+		provider.db,
 		tikTok,
 		info.ActiveContainers,
 		info.ResourceTypes,

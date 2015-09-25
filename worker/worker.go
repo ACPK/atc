@@ -23,6 +23,7 @@ var ErrIncompatiblePlatform = errors.New("incompatible platform")
 var ErrMismatchedTags = errors.New("mismatched tags")
 
 const containerKeepalive = 30 * time.Second
+const containerTTL = 5 * time.Minute
 
 const ephemeralPropertyName = "concourse:ephemeral"
 
@@ -40,9 +41,17 @@ type Worker interface {
 	VolumeManager() (baggageclaim.Client, bool)
 }
 
+//go:generate counterfeiter . GardenWorkerDB
+
+type GardenWorkerDB interface {
+	CreateContainerInfo(db.ContainerInfo, time.Duration) error
+	UpdateExpiresAtOnContainerInfo(handle string, ttl time.Duration) error
+}
+
 type gardenWorker struct {
 	gardenClient       garden.Client
 	baggageclaimClient baggageclaim.Client
+	db                 GardenWorkerDB
 
 	clock clock.Clock
 
@@ -56,6 +65,7 @@ type gardenWorker struct {
 func NewGardenWorker(
 	gardenClient garden.Client,
 	baggageclaimClient baggageclaim.Client,
+	db GardenWorkerDB,
 	clock clock.Clock,
 	activeContainers int,
 	resourceTypes []atc.WorkerResourceType,
@@ -66,6 +76,7 @@ func NewGardenWorker(
 	return &gardenWorker{
 		gardenClient:       gardenClient,
 		baggageclaimClient: baggageclaimClient,
+		db:                 db,
 		clock:              clock,
 
 		activeContainers: activeContainers,
@@ -139,7 +150,20 @@ dance:
 		return nil, err
 	}
 
-	return newGardenWorkerContainer(gardenContainer, worker.gardenClient, worker.baggageclaimClient, worker.clock)
+	err = worker.db.CreateContainerInfo(
+		db.ContainerInfo{
+			Handle:       gardenContainer.Handle(),
+			Name:         id.Name,
+			PipelineName: id.PipelineName,
+			BuildID:      id.BuildID,
+			Type:         id.Type,
+			WorkerName:   worker.name,
+		}, containerTTL)
+	if err != nil {
+		return nil, err
+	}
+
+	return newGardenWorkerContainer(gardenContainer, worker.gardenClient, worker.baggageclaimClient, worker.db, worker.clock)
 }
 
 func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container, bool, error) {
@@ -152,7 +176,7 @@ func (worker *gardenWorker) FindContainerForIdentifier(id Identifier) (Container
 	case 0:
 		return nil, false, nil
 	case 1:
-		container, err := newGardenWorkerContainer(containers[0], worker.gardenClient, worker.baggageclaimClient, worker.clock)
+		container, err := newGardenWorkerContainer(containers[0], worker.gardenClient, worker.baggageclaimClient, worker.db, worker.clock)
 		return container, true, err
 	default:
 		handles := []string{}
@@ -177,7 +201,7 @@ func (worker *gardenWorker) LookupContainer(handle string) (Container, bool, err
 		return nil, false, nil
 	}
 
-	container, err := newGardenWorkerContainer(gardenContainer, worker.gardenClient, worker.baggageclaimClient, worker.clock)
+	container, err := newGardenWorkerContainer(gardenContainer, worker.gardenClient, worker.baggageclaimClient, worker.db, worker.clock)
 	return container, true, err
 }
 
@@ -253,6 +277,7 @@ type gardenWorkerContainer struct {
 
 	gardenClient       garden.Client
 	baggageclaimClient baggageclaim.Client
+	db                 GardenWorkerDB
 
 	clock clock.Clock
 
@@ -268,6 +293,7 @@ func newGardenWorkerContainer(
 	container garden.Container,
 	gardenClient garden.Client,
 	baggageclaimClient baggageclaim.Client,
+	db GardenWorkerDB,
 	clock clock.Clock,
 ) (Container, error) {
 	workerContainer := &gardenWorkerContainer{
@@ -275,6 +301,7 @@ func newGardenWorkerContainer(
 
 		gardenClient:       gardenClient,
 		baggageclaimClient: baggageclaimClient,
+		db:                 db,
 
 		clock: clock,
 
@@ -405,6 +432,8 @@ func (container *gardenWorkerContainer) heartbeat(pacemaker clock.Ticker) {
 	for {
 		select {
 		case <-pacemaker.C():
+			container.db.UpdateExpiresAtOnContainerInfo(container.Handle(), containerTTL)
+
 			container.SetProperty("keepalive", fmt.Sprintf("%d", container.clock.Now().Unix()))
 		case <-container.stopHeartbeating:
 			return

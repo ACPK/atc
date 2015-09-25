@@ -275,23 +275,62 @@ func dbSharedBehavior(database *dbSharedBehaviorInput) func() {
 			}
 
 			By("creating a container")
-			err := database.CreateContainerInfo(expectedContainerInfo)
+			err := database.CreateContainerInfo(expectedContainerInfo, time.Minute)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			By("trying to create a container with the same handle")
-			err = database.CreateContainerInfo(db.ContainerInfo{Handle: "some-handle"})
+			err = database.CreateContainerInfo(db.ContainerInfo{Handle: "some-handle"}, time.Second)
 			Ω(err).Should(HaveOccurred())
 
 			By("getting the saved info object by handle")
 			actualContainerInfo, found, err := database.GetContainerInfo("some-handle")
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(found).Should(BeTrue())
-			Ω(actualContainerInfo).Should(Equal(expectedContainerInfo))
+
+			Ω(actualContainerInfo.Handle).Should(Equal("some-handle"))
+			Ω(actualContainerInfo.Name).Should(Equal("some-container"))
+			Ω(actualContainerInfo.PipelineName).Should(Equal("some-pipeline"))
+			Ω(actualContainerInfo.BuildID).Should(Equal(123))
+			Ω(actualContainerInfo.Type).Should(Equal(db.ContainerTypeTask))
+			Ω(actualContainerInfo.WorkerName).Should(Equal("some-worker"))
 
 			By("returning found = false when getting by a handle that does not exist")
 			_, found, err = database.GetContainerInfo("nope")
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(found).Should(BeFalse())
+		})
+
+		It("can update the time to live for a container info object", func() {
+			updatedTTL := 5 * time.Minute
+
+			originalContainerInfo := db.ContainerInfo{
+				Handle: "some-handle",
+				Type:   db.ContainerTypeTask,
+			}
+			err := database.CreateContainerInfo(originalContainerInfo, time.Minute)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			// comparisonContainerInfo is used to get the expected expiration time in the
+			// database timezone to avoid timezone errors
+			comparisonContainerInfo := db.ContainerInfo{
+				Handle: "comparison-handle",
+				Type:   db.ContainerTypeTask,
+			}
+			err = database.CreateContainerInfo(comparisonContainerInfo, updatedTTL)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			comparisonContainerInfo, found, err := database.GetContainerInfo("comparison-handle")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(found).Should(BeTrue())
+
+			err = database.UpdateExpiresAtOnContainerInfo("some-handle", updatedTTL)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			updatedContainerInfo, found, err := database.GetContainerInfo("some-handle")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(found).Should(BeTrue())
+
+			Ω(updatedContainerInfo.ExpiresAt).Should(BeTemporally("~", comparisonContainerInfo.ExpiresAt, time.Second))
 		})
 
 		type findContainerInfosByIdentifierExample struct {
@@ -312,7 +351,7 @@ func dbSharedBehavior(database *dbSharedBehaviorInput) func() {
 						containerToCreate.Type = db.ContainerTypeTask
 					}
 
-					err = database.CreateContainerInfo(containerToCreate)
+					err = database.CreateContainerInfo(containerToCreate, 1*time.Minute)
 					Ω(err).ShouldNot(HaveOccurred())
 				}
 
@@ -341,7 +380,7 @@ func dbSharedBehavior(database *dbSharedBehaviorInput) func() {
 				expectedHandles:      []string{"a", "b"},
 			}),
 
-			Entry("does return things that the fileter doesn't match", findContainerInfosByIdentifierExample{
+			Entry("does not return things that the filter doesn't match", findContainerInfosByIdentifierExample{
 				containersToCreate: []db.ContainerInfo{
 					{Handle: "a"},
 					{Handle: "b"},
@@ -453,9 +492,9 @@ func dbSharedBehavior(database *dbSharedBehaviorInput) func() {
 				Type:   db.ContainerTypeTask,
 			}
 
-			err := database.CreateContainerInfo(expectedContainerInfo)
+			err := database.CreateContainerInfo(expectedContainerInfo, time.Minute)
 			Ω(err).ShouldNot(HaveOccurred())
-			err = database.CreateContainerInfo(otherContainerInfo)
+			err = database.CreateContainerInfo(otherContainerInfo, time.Minute)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			By("returning a single matching container info")
@@ -476,6 +515,19 @@ func dbSharedBehavior(database *dbSharedBehaviorInput) func() {
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(found).Should(BeFalse())
 			Ω(actualContainerInfo.Handle).Should(BeEmpty())
+
+			By("removing it if the TTL has expired")
+			ttl := 1 * time.Second
+			ttlContainerInfo := db.ContainerInfo{
+				Handle: "some-ttl-handle",
+				Name:   "some-ttl-name",
+				Type:   db.ContainerTypeTask,
+			}
+
+			err = database.CreateContainerInfo(ttlContainerInfo, -ttl)
+			Ω(err).ShouldNot(HaveOccurred())
+			_, found, err = database.FindContainerInfoByIdentifier(db.ContainerIdentifier{Name: "some-ttl-name"})
+			Ω(found).Should(BeFalse())
 		})
 
 		It("can create one-off builds with increasing names", func() {

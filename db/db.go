@@ -57,8 +57,9 @@ type DB interface {
 
 	FindContainerInfosByIdentifier(ContainerIdentifier) ([]ContainerInfo, bool, error)
 	GetContainerInfo(string) (ContainerInfo, bool, error)
-	CreateContainerInfo(ContainerInfo) error
+	CreateContainerInfo(ContainerInfo, time.Duration) error
 	FindContainerInfoByIdentifier(ContainerIdentifier) (ContainerInfo, bool, error)
+	UpdateExpiresAtOnContainerInfo(handle string, ttl time.Duration) error
 
 	DeleteContainerInfo(string) error
 

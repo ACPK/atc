@@ -15,7 +15,6 @@ import (
 type WorkerProvider interface {
 	Workers() ([]Worker, error)
 	GetWorker(string) (Worker, bool, error)
-	CreateContainerInfo(db.ContainerInfo) error
 	FindContainerInfoForIdentifier(Identifier) (db.ContainerInfo, bool, error)
 	GetContainerInfo(string) (db.ContainerInfo, bool, error)
 }
@@ -95,20 +94,6 @@ func (pool *pool) CreateContainer(id Identifier, spec ContainerSpec) (Container,
 	}
 
 	container, err := worker.CreateContainer(id, spec)
-	if err != nil {
-		return nil, err
-	}
-
-	containerInfo := db.ContainerInfo{
-		Handle:       container.Handle(),
-		Name:         id.Name,
-		PipelineName: id.PipelineName,
-		BuildID:      id.BuildID,
-		Type:         id.Type,
-		WorkerName:   worker.Name(),
-	}
-
-	err = pool.provider.CreateContainerInfo(containerInfo)
 	if err != nil {
 		return nil, err
 	}

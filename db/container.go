@@ -1,6 +1,9 @@
 package db
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type ContainerInfo struct {
 	Handle       string
@@ -9,6 +12,7 @@ type ContainerInfo struct {
 	BuildID      int
 	Type         ContainerType
 	WorkerName   string
+	ExpiresAt    time.Time
 }
 
 type ContainerType string

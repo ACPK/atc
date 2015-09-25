@@ -26,14 +26,6 @@ type FakeWorkerProvider struct {
 		result2 bool
 		result3 error
 	}
-	CreateContainerInfoStub        func(db.ContainerInfo) error
-	createContainerInfoMutex       sync.RWMutex
-	createContainerInfoArgsForCall []struct {
-		arg1 db.ContainerInfo
-	}
-	createContainerInfoReturns struct {
-		result1 error
-	}
 	FindContainerInfoForIdentifierStub        func(worker.Identifier) (db.ContainerInfo, bool, error)
 	findContainerInfoForIdentifierMutex       sync.RWMutex
 	findContainerInfoForIdentifierArgsForCall []struct {
@@ -113,38 +105,6 @@ func (fake *FakeWorkerProvider) GetWorkerReturns(result1 worker.Worker, result2 
 		result2 bool
 		result3 error
 	}{result1, result2, result3}
-}
-
-func (fake *FakeWorkerProvider) CreateContainerInfo(arg1 db.ContainerInfo) error {
-	fake.createContainerInfoMutex.Lock()
-	fake.createContainerInfoArgsForCall = append(fake.createContainerInfoArgsForCall, struct {
-		arg1 db.ContainerInfo
-	}{arg1})
-	fake.createContainerInfoMutex.Unlock()
-	if fake.CreateContainerInfoStub != nil {
-		return fake.CreateContainerInfoStub(arg1)
-	} else {
-		return fake.createContainerInfoReturns.result1
-	}
-}
-
-func (fake *FakeWorkerProvider) CreateContainerInfoCallCount() int {
-	fake.createContainerInfoMutex.RLock()
-	defer fake.createContainerInfoMutex.RUnlock()
-	return len(fake.createContainerInfoArgsForCall)
-}
-
-func (fake *FakeWorkerProvider) CreateContainerInfoArgsForCall(i int) db.ContainerInfo {
-	fake.createContainerInfoMutex.RLock()
-	defer fake.createContainerInfoMutex.RUnlock()
-	return fake.createContainerInfoArgsForCall[i].arg1
-}
-
-func (fake *FakeWorkerProvider) CreateContainerInfoReturns(result1 error) {
-	fake.CreateContainerInfoStub = nil
-	fake.createContainerInfoReturns = struct {
-		result1 error
-	}{result1}
 }
 
 func (fake *FakeWorkerProvider) FindContainerInfoForIdentifier(arg1 worker.Identifier) (db.ContainerInfo, bool, error) {

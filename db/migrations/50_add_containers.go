@@ -10,6 +10,7 @@ func AddContainers(tx migration.LimitedTx) error {
 		name text NOT NULL,
 		build_id integer NOT NULL DEFAULT 0,
     worker_name text NOT NULL,
+		expires_at timestamp NOT NULL,
 		UNIQUE (handle)
 	)`)
 	if err != nil {

@@ -845,6 +845,15 @@ func (db *SQLDB) DeleteContainerInfo(handle string) error {
 }
 
 func (db *SQLDB) FindContainerInfosByIdentifier(id ContainerIdentifier) ([]ContainerInfo, bool, error) {
+	_, err := db.conn.Exec(`
+		DELETE FROM containers
+		WHERE expires_at IS NOT NULL
+		AND expires_at < NOW()
+	`)
+	if err != nil {
+		return nil, false, err
+	}
+
 	whereCriteria := []string{}
 	params := []interface{}{}
 
@@ -874,7 +883,6 @@ func (db *SQLDB) FindContainerInfosByIdentifier(id ContainerIdentifier) ([]Conta
 	}
 
 	var rows *sql.Rows
-	var err error
 	if len(whereCriteria) > 0 {
 		rows, err = db.conn.Query(
 			fmt.Sprintf(`
@@ -943,10 +951,10 @@ func (db *SQLDB) GetContainerInfo(handle string) (ContainerInfo, bool, error) {
 	var infoType string
 
 	err := db.conn.QueryRow(`
-		SELECT handle, pipeline_name, type, name, build_id, worker_name
+		SELECT handle, pipeline_name, type, name, build_id, worker_name, expires_at
 		FROM containers c
 		WHERE c.handle = $1
-	`, handle).Scan(&info.Handle, &info.PipelineName, &infoType, &info.Name, &info.BuildID, &info.WorkerName)
+	`, handle).Scan(&info.Handle, &info.PipelineName, &infoType, &info.Name, &info.BuildID, &info.WorkerName, &info.ExpiresAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -963,18 +971,20 @@ func (db *SQLDB) GetContainerInfo(handle string) (ContainerInfo, bool, error) {
 	return info, true, nil
 }
 
-func (db *SQLDB) CreateContainerInfo(containerInfo ContainerInfo) error {
+func (db *SQLDB) CreateContainerInfo(containerInfo ContainerInfo, ttl time.Duration) error {
 	tx, err := db.conn.Begin()
 
 	if err != nil {
 		return err
 	}
 
+	interval := fmt.Sprintf("%d second", int(ttl.Seconds()))
+
 	defer tx.Rollback()
 
 	_, err = tx.Exec(`
-		INSERT INTO containers (handle, name, pipeline_name, build_id, type, worker_name)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO containers (handle, name, pipeline_name, build_id, type, worker_name, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6,  NOW() + $7::INTERVAL)
 		`,
 		containerInfo.Handle,
 		containerInfo.Name,
@@ -982,6 +992,33 @@ func (db *SQLDB) CreateContainerInfo(containerInfo ContainerInfo) error {
 		containerInfo.BuildID,
 		containerInfo.Type.ToString(),
 		containerInfo.WorkerName,
+		interval,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (db *SQLDB) UpdateExpiresAtOnContainerInfo(handle string, ttl time.Duration) error {
+	tx, err := db.conn.Begin()
+
+	if err != nil {
+		return err
+	}
+
+	interval := fmt.Sprintf("%d second", int(ttl.Seconds()))
+
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`
+		UPDATE containers SET expires_at = NOW() + $2::INTERVAL
+		WHERE handle = $1
+		`,
+		handle,
+		interval,
 	)
 
 	if err != nil {
