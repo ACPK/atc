@@ -154,7 +154,7 @@ func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 		for _, w := range compatibleWorkers {
 			mounts, toStream, err := step.inputsOn(config.Inputs, w)
 			if err != nil {
-				return err //TODO
+				return err // TODO - See tasks
 			}
 			if len(mounts) >= len(inputMounts) {
 				inputMounts = mounts

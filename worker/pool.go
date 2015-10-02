@@ -56,6 +56,13 @@ func NewPool(provider WorkerProvider) Client {
 	}
 }
 
+func shuffleWorkers(slice []Worker) {
+	for i := range slice {
+		j := rand.Intn(i + 1)
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+}
+
 func (pool *pool) AllSatisfying(spec WorkerSpec) ([]Worker, error) {
 	workers, err := pool.provider.Workers()
 	if err != nil {
@@ -80,6 +87,8 @@ func (pool *pool) AllSatisfying(spec WorkerSpec) ([]Worker, error) {
 			Workers: workers,
 		}
 	}
+
+	shuffleWorkers(compatibleWorkers)
 
 	return compatibleWorkers, nil
 }
