@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -123,7 +122,6 @@ var _ = Describe("GardenFactory", func() {
 					disaster := errors.New("nope")
 
 					BeforeEach(func() {
-						fakeWorkerClient.SatisfyingReturns(nil, disaster)
 						fakeWorkerClient.AllSatisfyingReturns(nil, disaster)
 					})
 
@@ -142,7 +140,6 @@ var _ = Describe("GardenFactory", func() {
 						fakeBaggageclaimClient = new(bfakes.FakeClient)
 						fakeWorker.VolumeManagerReturns(fakeBaggageclaimClient, true)
 
-						fakeWorkerClient.SatisfyingReturns(fakeWorker, nil)
 						fakeWorkerClient.AllSatisfyingReturns([]worker.Worker{fakeWorker}, nil)
 					})
 
@@ -179,7 +176,8 @@ var _ = Describe("GardenFactory", func() {
 						})
 
 						It("found the worker with the right spec", func() {
-							spec := fakeWorkerClient.SatisfyingArgsForCall(0)
+							Expect(fakeWorkerClient.AllSatisfyingCallCount()).To(Equal(1))
+							spec := fakeWorkerClient.AllSatisfyingArgsForCall(0)
 							Expect(spec.Platform).To(Equal("some-platform"))
 							Expect(spec.Tags).To(ConsistOf("step", "tags", "config"))
 						})
@@ -902,26 +900,7 @@ var _ = Describe("GardenFactory", func() {
 						fakeBaggageclaimClient = new(bfakes.FakeClient)
 						fakeWorker2.VolumeManagerReturns(fakeBaggageclaimClient, true)
 
-						expectedSpec := worker.WorkerSpec{
-							Platform: "some-platform",
-							Tags:     []string{"step", "tags"},
-						}
-
-						fakeWorkerClient.SatisfyingStub = func(spec worker.WorkerSpec) (worker.Worker, error) {
-							if reflect.DeepEqual(spec, expectedSpec) {
-								return fakeWorker, nil
-							} else {
-								return nil, fmt.Errorf("unexpected spec: %#v\n", spec)
-							}
-						}
-
-						fakeWorkerClient.AllSatisfyingStub = func(spec worker.WorkerSpec) ([]worker.Worker, error) {
-							if reflect.DeepEqual(spec, expectedSpec) {
-								return []worker.Worker{fakeWorker, fakeWorker2}, nil
-							} else {
-								return nil, fmt.Errorf("unexpected spec: %#v\n", spec)
-							}
-						}
+						fakeWorkerClient.AllSatisfyingReturns([]worker.Worker{fakeWorker, fakeWorker2}, nil)
 					})
 					Context("when the configuration has inputs", func() {
 						var inputSource *fakes.FakeArtifactSource
