@@ -74,6 +74,10 @@ func (repo *SourceRepository) VolumeOn(worker worker.Worker) (baggageclaim.Volum
 	return nil, false, nil
 }
 
+func (repo *SourceRepository) Name() string {
+	return "" //TODO: don't do this
+}
+
 type subdirectoryDestination struct {
 	destination  ArtifactDestination
 	subdirectory string

@@ -45,7 +45,7 @@ type ResourceTypeContainerSpec struct {
 	Ephemeral bool
 	Tags      []string
 	Env       []string
-	Cache     VolumeMount
+	Cache     []VolumeMount
 }
 
 func (spec ResourceTypeContainerSpec) WorkerSpec() WorkerSpec {

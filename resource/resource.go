@@ -36,6 +36,10 @@ type IOConfig struct {
 
 type ArtifactSource interface {
 	StreamTo(ArtifactDestination) error
+
+	VolumeOn(worker.Worker) (baggageclaim.Volume, bool, error)
+
+	Name() string
 }
 
 //go:generate counterfeiter . ArtifactDestination

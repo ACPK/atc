@@ -139,3 +139,7 @@ type resourceSource struct {
 func (source resourceSource) StreamTo(dest resource.ArtifactDestination) error {
 	return source.ArtifactSource.StreamTo(resource.ArtifactDestination(dest))
 }
+
+func (source resourceSource) Name() string {
+	return "" //TODO: don't do this
+}

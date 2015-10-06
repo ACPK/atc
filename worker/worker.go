@@ -118,16 +118,14 @@ dance:
 			gardenSpec.Properties[ephemeralPropertyName] = "true"
 		}
 
-		if s.Cache.Volume != nil && s.Cache.MountPath != "" {
-			gardenSpec.BindMounts = []garden.BindMount{
-				{
-					SrcPath: s.Cache.Volume.Path(),
-					DstPath: s.Cache.MountPath,
-					Mode:    garden.BindMountModeRW,
-				},
-			}
+		for _, mount := range s.Cache {
+			gardenSpec.BindMounts = append(gardenSpec.BindMounts, garden.BindMount{
+				SrcPath: mount.Volume.Path(),
+				DstPath: mount.MountPath,
+				Mode:    garden.BindMountModeRW,
+			})
 
-			volumeHandles = append(volumeHandles, s.Cache.Volume.Handle())
+			volumeHandles = append(volumeHandles, mount.Volume.Handle())
 		}
 
 		for _, t := range worker.resourceTypes {

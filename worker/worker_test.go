@@ -221,18 +221,31 @@ var _ = Describe("Worker", func() {
 					})
 
 					Context("when a volume mount is provided", func() {
-						var volume *bfakes.FakeVolume
+						var (
+							volume1 *bfakes.FakeVolume
+							volume2 *bfakes.FakeVolume
+						)
 
 						BeforeEach(func() {
-							volume = new(bfakes.FakeVolume)
-							volume.HandleReturns("some-volume")
-							volume.PathReturns("/some/src/path")
+							volume1 = new(bfakes.FakeVolume)
+							volume1.HandleReturns("some-volume1")
+							volume1.PathReturns("/some/src/path1")
+
+							volume2 = new(bfakes.FakeVolume)
+							volume2.HandleReturns("some-volume2")
+							volume2.PathReturns("/some/src/path2")
 
 							spec = ResourceTypeContainerSpec{
 								Type: "some-resource",
-								Cache: VolumeMount{
-									Volume:    volume,
-									MountPath: "/some/dst/path",
+								Cache: []VolumeMount{
+									{
+										Volume:    volume1,
+										MountPath: "/some/dst/path1",
+									},
+									{
+										Volume:    volume2,
+										MountPath: "/some/dst/path2",
+									},
 								},
 							}
 						})
@@ -243,17 +256,21 @@ var _ = Describe("Worker", func() {
 								RootFSPath: "some-resource-image",
 								Privileged: true,
 								Properties: garden.Properties{
-									"concourse:volumes": `["some-volume"]`,
+									"concourse:volumes": `["some-volume1","some-volume2"]`,
 								},
 								BindMounts: []garden.BindMount{
 									{
-										SrcPath: "/some/src/path",
-										DstPath: "/some/dst/path",
+										SrcPath: "/some/src/path1",
+										DstPath: "/some/dst/path1",
+										Mode:    garden.BindMountModeRW,
+									},
+									{
+										SrcPath: "/some/src/path2",
+										DstPath: "/some/dst/path2",
 										Mode:    garden.BindMountModeRW,
 									},
 								},
 							}))
-
 						})
 					})
 
