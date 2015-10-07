@@ -46,6 +46,7 @@ type ResourceTypeContainerSpec struct {
 	Tags      []string
 	Env       []string
 	Cache     []VolumeMount
+	COW       bool
 }
 
 func (spec ResourceTypeContainerSpec) WorkerSpec() WorkerSpec {

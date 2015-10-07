@@ -119,13 +119,30 @@ dance:
 		}
 
 		for _, mount := range s.Cache {
+			volume := mount.Volume
+
+			if s.COW {
+				cowVolume, _ := worker.baggageclaimClient.CreateVolume(logger, baggageclaim.VolumeSpec{
+					Strategy: baggageclaim.COWStrategy{
+						Parent: mount.Volume,
+					},
+					Privileged: gardenSpec.Privileged,
+					TTL:        inputVolumeTTL,
+				})
+
+				volume = cowVolume
+
+				// release *after* container creation
+				defer volume.Release(0)
+			}
+
 			gardenSpec.BindMounts = append(gardenSpec.BindMounts, garden.BindMount{
-				SrcPath: mount.Volume.Path(),
+				SrcPath: volume.Path(),
 				DstPath: mount.MountPath,
 				Mode:    garden.BindMountModeRW,
 			})
 
-			volumeHandles = append(volumeHandles, mount.Volume.Handle())
+			volumeHandles = append(volumeHandles, volume.Handle())
 		}
 
 		for _, t := range worker.resourceTypes {
