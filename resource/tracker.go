@@ -20,7 +20,7 @@ type Session struct {
 type Tracker interface {
 	Init(lager.Logger, Metadata, Session, ResourceType, atc.Tags) (Resource, error)
 	InitWithCache(lager.Logger, Metadata, Session, ResourceType, atc.Tags, CacheIdentifier) (Resource, Cache, error)
-	InitWithSources(lager.Logger, Metadata, Session, ResourceType, atc.Tags, []ArtifactSource) (Resource, []ArtifactSource, error)
+	InitWithSources(lager.Logger, Metadata, Session, ResourceType, atc.Tags, map[string]ArtifactSource) (Resource, []string, error)
 }
 
 //go:generate counterfeiter . Cache
@@ -59,7 +59,14 @@ type VolumeMount struct {
 	MountPath string
 }
 
-func (tracker *tracker) InitWithSources(logger lager.Logger, metadata Metadata, session Session, typ ResourceType, tags atc.Tags, sources []ArtifactSource) (Resource, []ArtifactSource, error) {
+func (tracker *tracker) InitWithSources(
+	logger lager.Logger,
+	metadata Metadata,
+	session Session,
+	typ ResourceType,
+	tags atc.Tags,
+	sources map[string]ArtifactSource,
+) (Resource, []string, error) {
 	logger = logger.Session("init-with-sources")
 
 	logger.Debug("start")
@@ -73,7 +80,14 @@ func (tracker *tracker) InitWithSources(logger lager.Logger, metadata Metadata, 
 
 	if found {
 		logger.Debug("found-existing-container", lager.Data{"container": container.Handle()})
-		return NewResource(container), sources, nil
+
+		missingNames := []string{}
+
+		for name, _ := range sources {
+			missingNames = append(missingNames, name)
+		}
+
+		return NewResource(container), missingNames, nil
 	}
 
 	resourceSpec := worker.ResourceTypeContainerSpec{
@@ -92,9 +106,9 @@ func (tracker *tracker) InitWithSources(logger lager.Logger, metadata Metadata, 
 	}
 
 	var mounts []worker.VolumeMount
-	var missingSources []ArtifactSource
+	missingSources := []string{}
 
-	for _, source := range sources {
+	for name, source := range sources {
 		volume, found, err := source.VolumeOn(chosenWorker)
 		if err != nil {
 			logger.Error("failed-to-lookup-volume", err)
@@ -104,14 +118,14 @@ func (tracker *tracker) InitWithSources(logger lager.Logger, metadata Metadata, 
 		if found {
 			mounts = append(mounts, worker.VolumeMount{
 				Volume:    volume,
-				MountPath: ResourcesDir(source.Name()),
+				MountPath: ResourcesDir(name),
 			})
 		} else {
-			missingSources = append(missingSources, source)
+			missingSources = append(missingSources, name)
 		}
 	}
 
-	resourceSpec.Cache = mounts
+	resourceSpec.Mounts = mounts
 
 	container, err = chosenWorker.CreateContainer(logger, session.ID, resourceSpec)
 	if err != nil {
@@ -255,11 +269,9 @@ func (tracker *tracker) InitWithCache(logger lager.Logger, metadata Metadata, se
 		Ephemeral: session.Ephemeral,
 		Tags:      tags,
 		Env:       metadata.Env(),
-		Cache: []worker.VolumeMount{
-			{
-				Volume:    cachedVolume,
-				MountPath: ResourcesDir("get"),
-			},
+		Cache: worker.VolumeMount{
+			Volume:    cachedVolume,
+			MountPath: ResourcesDir("get"),
 		},
 	})
 	if err != nil {

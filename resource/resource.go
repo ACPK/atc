@@ -42,8 +42,6 @@ type ArtifactSource interface {
 	// or a volume manager cannot be found on the worker then it will return
 	// false.
 	VolumeOn(worker.Worker) (baggageclaim.Volume, bool, error)
-
-	Name() string
 }
 
 //go:generate counterfeiter . ArtifactDestination

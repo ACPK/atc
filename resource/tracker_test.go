@@ -221,11 +221,9 @@ var _ = Describe("Tracker", func() {
 							Expect(resourceSpec.Env).To(Equal([]string{"a=1", "b=2"}))
 							Expect(resourceSpec.Ephemeral).To(Equal(true))
 							Expect(resourceSpec.Tags).To(ConsistOf("resource", "tags"))
-							Expect(resourceSpec.Cache).To(Equal([]worker.VolumeMount{
-								{
-									Volume:    foundVolume,
-									MountPath: "/tmp/build/get",
-								},
+							Expect(resourceSpec.Cache).To(Equal(worker.VolumeMount{
+								Volume:    foundVolume,
+								MountPath: "/tmp/build/get",
 							}))
 						})
 
@@ -339,11 +337,9 @@ var _ = Describe("Tracker", func() {
 							Expect(resourceSpec.Env).To(Equal([]string{"a=1", "b=2"}))
 							Expect(resourceSpec.Ephemeral).To(Equal(true))
 							Expect(resourceSpec.Tags).To(ConsistOf("resource", "tags"))
-							Expect(resourceSpec.Cache).To(Equal([]worker.VolumeMount{
-								{
-									Volume:    createdVolume,
-									MountPath: "/tmp/build/get",
-								},
+							Expect(resourceSpec.Cache).To(Equal(worker.VolumeMount{
+								Volume:    createdVolume,
+								MountPath: "/tmp/build/get",
 							}))
 						})
 
@@ -599,7 +595,7 @@ var _ = Describe("Tracker", func() {
 		var (
 			logger       *lagertest.TestLogger
 			metadata     Metadata = testMetadata{"a=1", "b=2"}
-			inputSources []ArtifactSource
+			inputSources map[string]ArtifactSource
 
 			inputSource1 *fakes.FakeArtifactSource
 			inputSource2 *fakes.FakeArtifactSource
@@ -608,7 +604,7 @@ var _ = Describe("Tracker", func() {
 			initType ResourceType
 
 			initResource   Resource
-			missingSources []ArtifactSource
+			missingSources []string
 			initErr        error
 		)
 
@@ -617,15 +613,14 @@ var _ = Describe("Tracker", func() {
 			initType = "type1"
 
 			inputSource1 = new(fakes.FakeArtifactSource)
-			inputSource1.NameReturns("source-1-name")
-
 			inputSource2 = new(fakes.FakeArtifactSource)
-			inputSource2.NameReturns("source-2-name")
-
 			inputSource3 = new(fakes.FakeArtifactSource)
-			inputSource3.NameReturns("source-3-name")
 
-			inputSources = []ArtifactSource{inputSource1, inputSource2, inputSource3}
+			inputSources = map[string]ArtifactSource{
+				"source-1-name": inputSource1,
+				"source-2-name": inputSource2,
+				"source-3-name": inputSource3,
+			}
 		})
 
 		JustBeforeEach(func() {
@@ -705,9 +700,9 @@ var _ = Describe("Tracker", func() {
 
 						Expect(resourceSpec.Type).To(Equal(string(initType)))
 						Expect(resourceSpec.Env).To(Equal([]string{"a=1", "b=2"}))
-						Expect(resourceSpec.Ephemeral).To(Equal(true))
+						Expect(resourceSpec.Ephemeral).To(BeTrue())
 						Expect(resourceSpec.Tags).To(ConsistOf("resource", "tags"))
-						Expect(resourceSpec.Cache).To(Equal([]worker.VolumeMount{
+						Expect(resourceSpec.Mounts).To(ConsistOf([]worker.VolumeMount{
 							{
 								Volume:    inputVolume1,
 								MountPath: "/tmp/build/source-1-name",
@@ -725,8 +720,9 @@ var _ = Describe("Tracker", func() {
 					})
 
 					It("returns the artifact sources that it could not find volumes for", func() {
-						Expect(missingSources).To(ConsistOf(inputSource2))
+						Expect(missingSources).To(ConsistOf("source-2-name"))
 					})
+
 					Context("when creating the container fails", func() {
 						disaster := errors.New("oh no!")
 
@@ -764,7 +760,7 @@ var _ = Describe("Tracker", func() {
 					})
 
 					It("returns them all as missing sources", func() {
-						Expect(missingSources).To(ConsistOf(inputSource1, inputSource2, inputSource3))
+						Expect(missingSources).To(ConsistOf("source-1-name", "source-2-name", "source-3-name"))
 					})
 				})
 
@@ -838,7 +834,7 @@ var _ = Describe("Tracker", func() {
 			})
 
 			It("returns them all as missing sources", func() {
-				Expect(missingSources).To(ConsistOf(inputSource1, inputSource2, inputSource3))
+				Expect(missingSources).To(ConsistOf("source-1-name", "source-2-name", "source-3-name"))
 			})
 		})
 	})

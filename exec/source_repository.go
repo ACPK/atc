@@ -52,6 +52,16 @@ func (repo *SourceRepository) StreamTo(dest ArtifactDestination) error {
 	return nil
 }
 
+func (repo *SourceRepository) AsMap() map[string]ArtifactSource {
+	result := make(map[string]ArtifactSource)
+
+	for name, source := range repo.repo {
+		result[string(name)] = source
+	}
+
+	return result
+}
+
 func (repo *SourceRepository) StreamFile(path string) (io.ReadCloser, error) {
 	sources := map[SourceName]ArtifactSource{}
 
@@ -72,10 +82,6 @@ func (repo *SourceRepository) StreamFile(path string) (io.ReadCloser, error) {
 
 func (repo *SourceRepository) VolumeOn(worker worker.Worker) (baggageclaim.Volume, bool, error) {
 	return nil, false, nil
-}
-
-func (repo *SourceRepository) Name() string {
-	return "" //TODO: don't do this
 }
 
 type subdirectoryDestination struct {

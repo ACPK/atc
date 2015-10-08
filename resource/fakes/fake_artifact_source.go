@@ -28,12 +28,6 @@ type FakeArtifactSource struct {
 		result2 bool
 		result3 error
 	}
-	NameStub        func() string
-	nameMutex       sync.RWMutex
-	nameArgsForCall []struct{}
-	nameReturns     struct {
-		result1 string
-	}
 }
 
 func (fake *FakeArtifactSource) StreamTo(arg1 resource.ArtifactDestination) error {
@@ -100,30 +94,6 @@ func (fake *FakeArtifactSource) VolumeOnReturns(result1 baggageclaim.Volume, res
 		result2 bool
 		result3 error
 	}{result1, result2, result3}
-}
-
-func (fake *FakeArtifactSource) Name() string {
-	fake.nameMutex.Lock()
-	fake.nameArgsForCall = append(fake.nameArgsForCall, struct{}{})
-	fake.nameMutex.Unlock()
-	if fake.NameStub != nil {
-		return fake.NameStub()
-	} else {
-		return fake.nameReturns.result1
-	}
-}
-
-func (fake *FakeArtifactSource) NameCallCount() int {
-	fake.nameMutex.RLock()
-	defer fake.nameMutex.RUnlock()
-	return len(fake.nameArgsForCall)
-}
-
-func (fake *FakeArtifactSource) NameReturns(result1 string) {
-	fake.NameStub = nil
-	fake.nameReturns = struct {
-		result1 string
-	}{result1}
 }
 
 var _ resource.ArtifactSource = new(FakeArtifactSource)

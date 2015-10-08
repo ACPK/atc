@@ -110,39 +110,51 @@ func (worker *gardenWorker) CreateContainer(logger lager.Logger, id Identifier, 
 dance:
 	switch s := spec.(type) {
 	case ResourceTypeContainerSpec:
-		gardenSpec.Privileged = true
+		if len(s.Mounts) > 0 && s.Cache.Volume != nil {
+			return nil, errors.New("a container may not have mounts and a cache")
+		}
 
+		gardenSpec.Privileged = true
 		gardenSpec.Env = s.Env
 
 		if s.Ephemeral {
 			gardenSpec.Properties[ephemeralPropertyName] = "true"
 		}
 
-		for _, mount := range s.Cache {
-			volume := mount.Volume
-
-			if s.COW {
-				cowVolume, _ := worker.baggageclaimClient.CreateVolume(logger, baggageclaim.VolumeSpec{
-					Strategy: baggageclaim.COWStrategy{
-						Parent: mount.Volume,
-					},
-					Privileged: gardenSpec.Privileged,
-					TTL:        inputVolumeTTL,
-				})
-
-				volume = cowVolume
-
-				// release *after* container creation
-				defer volume.Release(0)
+		if s.Cache.Volume != nil && s.Cache.MountPath != "" {
+			gardenSpec.BindMounts = []garden.BindMount{
+				{
+					SrcPath: s.Cache.Volume.Path(),
+					DstPath: s.Cache.MountPath,
+					Mode:    garden.BindMountModeRW,
+				},
 			}
 
+			volumeHandles = append(volumeHandles, s.Cache.Volume.Handle())
+		}
+
+		for _, mount := range s.Mounts {
+			cowVolume, err := worker.baggageclaimClient.CreateVolume(logger, baggageclaim.VolumeSpec{
+				Strategy: baggageclaim.COWStrategy{
+					Parent: mount.Volume,
+				},
+				Privileged: gardenSpec.Privileged,
+				TTL:        inputVolumeTTL,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			// release *after* container creation
+			defer cowVolume.Release(0)
+
 			gardenSpec.BindMounts = append(gardenSpec.BindMounts, garden.BindMount{
-				SrcPath: volume.Path(),
+				SrcPath: cowVolume.Path(),
 				DstPath: mount.MountPath,
 				Mode:    garden.BindMountModeRW,
 			})
 
-			volumeHandles = append(volumeHandles, volume.Handle())
+			volumeHandles = append(volumeHandles, cowVolume.Handle())
 		}
 
 		for _, t := range worker.resourceTypes {

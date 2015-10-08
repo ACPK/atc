@@ -245,7 +245,7 @@ var _ = Describe("Worker", func() {
 							BeforeEach(func() {
 								spec = ResourceTypeContainerSpec{
 									Type: "some-resource",
-									Cache: []VolumeMount{
+									Mounts: []VolumeMount{
 										{
 											Volume:    volume1,
 											MountPath: "/some/dst/path1",
@@ -255,7 +255,6 @@ var _ = Describe("Worker", func() {
 											MountPath: "/some/dst/path2",
 										},
 									},
-									COW: true,
 								}
 
 								cowVolume1 = new(bfakes.FakeVolume)
@@ -312,23 +311,29 @@ var _ = Describe("Worker", func() {
 								Expect(volume1.ReleaseCallCount()).To(BeZero())
 								Expect(volume2.ReleaseCallCount()).To(BeZero())
 							})
+
+							Context("and the copy-on-write volumes fail to be created", func() {
+								disaster := errors.New("par")
+
+								BeforeEach(func() {
+									fakeBaggageclaimClient.CreateVolumeReturns(nil, disaster)
+								})
+
+								It("errors", func() {
+									Expect(createErr).To(Equal(disaster))
+									Expect(fakeGardenClient.CreateCallCount()).To(BeZero())
+								})
+							})
 						})
 
-						Context("when copy-on-write is not specified", func() {
+						Context("when a cache is specified", func() {
 							BeforeEach(func() {
 								spec = ResourceTypeContainerSpec{
 									Type: "some-resource",
-									Cache: []VolumeMount{
-										{
-											Volume:    volume1,
-											MountPath: "/some/dst/path1",
-										},
-										{
-											Volume:    volume2,
-											MountPath: "/some/dst/path2",
-										},
+									Cache: VolumeMount{
+										Volume:    volume1,
+										MountPath: "/some/dst/path1",
 									},
-									COW: false,
 								}
 							})
 
@@ -338,7 +343,7 @@ var _ = Describe("Worker", func() {
 									RootFSPath: "some-resource-image",
 									Privileged: true,
 									Properties: garden.Properties{
-										"concourse:volumes": `["some-volume1","some-volume2"]`,
+										"concourse:volumes": `["some-volume1"]`,
 									},
 									BindMounts: []garden.BindMount{
 										{
@@ -346,13 +351,35 @@ var _ = Describe("Worker", func() {
 											DstPath: "/some/dst/path1",
 											Mode:    garden.BindMountModeRW,
 										},
-										{
-											SrcPath: "/some/src/path2",
-											DstPath: "/some/dst/path2",
-											Mode:    garden.BindMountModeRW,
-										},
 									},
 								}))
+							})
+						})
+
+						Context("when both cache and volumes are specified", func() {
+							BeforeEach(func() {
+								spec = ResourceTypeContainerSpec{
+									Type: "some-resource",
+									Cache: VolumeMount{
+										Volume:    volume1,
+										MountPath: "/some/dst/path1",
+									},
+									Mounts: []VolumeMount{
+										{
+											Volume:    volume1,
+											MountPath: "/some/dst/path1",
+										},
+										{
+											Volume:    volume2,
+											MountPath: "/some/dst/path2",
+										},
+									},
+								}
+							})
+
+							It("errors (may be ok but I don't know how they get along)", func() {
+								Expect(createErr).To(HaveOccurred())
+								Expect(fakeGardenClient.CreateCallCount()).To(BeZero())
 							})
 						})
 					})
