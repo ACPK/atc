@@ -366,16 +366,16 @@ var _ = Describe("GardenFactory", func() {
 									It("bind-mounts copy-on-write volumes to their destinations in the container", func() {
 										_, _, spec := fakeWorker.CreateContainerArgsForCall(0)
 										taskSpec := spec.(worker.TaskContainerSpec)
-										Expect(taskSpec.Inputs).To(Equal([]worker.VolumeMount{
-											{
+										Expect(taskSpec.Inputs).To(ConsistOf(
+											worker.VolumeMount{
 												Volume:    inputVolume,
 												MountPath: "/tmp/build/a-random-guid/some-input-configured-path",
 											},
-											{
+											worker.VolumeMount{
 												Volume:    otherInputVolume,
 												MountPath: "/tmp/build/a-random-guid/some-other-input",
 											},
-										}))
+										))
 									})
 
 									It("releases the volumes given to the worker", func() {

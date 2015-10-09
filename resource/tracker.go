@@ -59,6 +59,47 @@ type VolumeMount struct {
 	MountPath string
 }
 
+func BestWorker(compatibleWorkers []worker.Worker, sources map[string]ArtifactSource) (worker.Worker, map[string]baggageclaim.Volume, []string, error) {
+	// find the worker with the most volumes
+	volumes := map[string]baggageclaim.Volume{}
+	missingSources := []string{}
+	var chosenWorker worker.Worker
+
+	for _, w := range compatibleWorkers {
+		candidateVolumes := map[string]baggageclaim.Volume{}
+		missing := []string{}
+
+		for name, source := range sources {
+			volume, found, err := source.VolumeOn(w)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+
+			if found {
+				candidateVolumes[name] = volume
+			} else {
+				missing = append(missing, name)
+			}
+		}
+
+		if len(candidateVolumes) >= len(volumes) {
+			for _, volume := range volumes {
+				volume.Release(0)
+			}
+
+			volumes = candidateVolumes
+			missingSources = missing
+			chosenWorker = w
+		} else {
+			for _, volume := range candidateVolumes {
+				volume.Release(0)
+			}
+		}
+	}
+
+	return chosenWorker, volumes, missingSources, nil
+}
+
 func (tracker *tracker) InitWithSources(
 	logger lager.Logger,
 	metadata Metadata,
@@ -103,46 +144,19 @@ func (tracker *tracker) InitWithSources(
 	}
 
 	// find the worker with the most volumes
-	mounts := []worker.VolumeMount{}
-	missingSources := []string{}
-	var chosenWorker worker.Worker
-
-	for _, w := range compatibleWorkers {
-		candidateMounts := []worker.VolumeMount{}
-		missing := []string{}
-
-		for name, source := range sources {
-			volume, found, err := source.VolumeOn(w)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			if found {
-				candidateMounts = append(candidateMounts, worker.VolumeMount{
-					Volume:    volume,
-					MountPath: ResourcesDir("put/" + name),
-				})
-			} else {
-				missing = append(missing, name)
-			}
-		}
-
-		if len(candidateMounts) >= len(mounts) {
-			for _, mount := range mounts {
-				mount.Volume.Release(0)
-			}
-
-			mounts = candidateMounts
-			missingSources = missing
-			chosenWorker = w
-		} else {
-			for _, mount := range candidateMounts {
-				mount.Volume.Release(0)
-			}
-		}
+	chosenWorker, volumes, missingSources, err := BestWorker(compatibleWorkers, sources)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	resourceSpec.Mounts = mounts
+	resourceSpec.Mounts = []worker.VolumeMount{}
+
+	for name, volume := range volumes {
+		resourceSpec.Mounts = append(resourceSpec.Mounts, worker.VolumeMount{
+			Volume:    volume,
+			MountPath: ResourcesDir("put/" + name),
+		})
+	}
 
 	container, err = chosenWorker.CreateContainer(logger, session.ID, resourceSpec)
 	if err != nil {
@@ -152,8 +166,8 @@ func (tracker *tracker) InitWithSources(
 
 	logger.Info("created", lager.Data{"container": container.Handle()})
 
-	for _, mount := range mounts {
-		mount.Volume.Release(0)
+	for _, volume := range volumes {
+		volume.Release(0)
 	}
 
 	return NewResource(container), missingSources, nil

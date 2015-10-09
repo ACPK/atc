@@ -13,6 +13,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/concourse/atc"
+	"github.com/concourse/atc/resource"
 	"github.com/concourse/atc/worker"
 	"github.com/concourse/baggageclaim"
 	"github.com/pivotal-golang/lager"
@@ -150,25 +151,40 @@ func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 
 		// find the worker with the most volumes
 		inputMounts := []worker.VolumeMount{}
+
+		sources := map[string]resource.ArtifactSource{}
+		missingInputs := []string{}
+		inputMap := map[string]atc.TaskInputConfig{}
+		for _, input := range config.Inputs {
+			source, found := step.repo.SourceFor(SourceName(input.Name))
+			if !found {
+				missingInputs = append(missingInputs, input.Name)
+				continue
+			}
+			sources[input.Name] = resourceSource{source}
+			inputMap[input.Name] = input
+		}
+		if len(missingInputs) > 0 {
+			return MissingInputsError{missingInputs}
+		}
+
+		chosenWorker, volumes, missingSources, err := resource.BestWorker(compatibleWorkers, sources)
+		if err != nil {
+			return err
+		}
+
+		inputMounts = []worker.VolumeMount{}
+		for name, volume := range volumes {
+			inputMounts = append(inputMounts, worker.VolumeMount{
+				Volume:    volume,
+				MountPath: step.inputDestination(inputMap[name]),
+			})
+		}
+
 		inputsToStream := []inputPair{}
-		var chosenWorker worker.Worker
-		for _, w := range compatibleWorkers {
-			mounts, toStream, err := step.inputsOn(config.Inputs, w)
-			if err != nil {
-				return err
-			}
-			if len(mounts) >= len(inputMounts) {
-				for _, mount := range inputMounts {
-					mount.Volume.Release(0)
-				}
-				inputMounts = mounts
-				inputsToStream = toStream
-				chosenWorker = w
-			} else {
-				for _, mount := range mounts {
-					mount.Volume.Release(0)
-				}
-			}
+		for _, name := range missingSources {
+			source, _ := step.repo.SourceFor(SourceName(name))
+			inputsToStream = append(inputsToStream, inputPair{inputMap[name], source})
 		}
 
 		step.container, err = chosenWorker.CreateContainer(
@@ -186,10 +202,10 @@ func (step *taskStep) Run(signals <-chan os.Signal, ready chan<- struct{}) error
 			return err
 		}
 
-		for _, mount := range inputMounts {
+		for _, volume := range volumes {
 			// stop heartbeating ourselves now that container has picked up the
 			// volumes
-			mount.Volume.Release(0)
+			volume.Release(0)
 		}
 
 		err = step.ensureBuildDirExists(step.container)
