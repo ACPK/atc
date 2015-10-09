@@ -396,6 +396,48 @@ func (db *SQLDB) LeaseBuildScheduling(buildID int, interval time.Duration) (Leas
 	return lease, true, nil
 }
 
+func (db *SQLDB) LeaseCacheInvalidation(interval time.Duration) (Lease, bool, error) {
+	lease := &lease{
+		conn: db.conn,
+		logger: db.logger.Session("lease", lager.Data{
+			"CacheInvalidator": "Scottsboro",
+		}),
+		attemptSignFunc: func(tx *sql.Tx) (sql.Result, error) {
+			_, err := tx.Exec(`
+				INSERT INTO cache_invalidator (last_invalidated)
+				SELECT 'epoch'
+				WHERE NOT EXISTS (SELECT * FROM cache_invalidator)`)
+			if err != nil {
+				return nil, err
+			}
+			return tx.Exec(`
+		  	UPDATE cache_invalidator
+				SET last_invalidated = now()
+				WHERE now() - last_invalidated > ($1 || ' SECONDS')::INTERVAL
+			`, interval.Seconds())
+		},
+		heartbeatFunc: func(tx *sql.Tx) (sql.Result, error) {
+			return tx.Exec(`
+				UPDATE cache_invalidator
+				SET last_invalidated = now()
+			`)
+		},
+	}
+
+	renewed, err := lease.AttemptSign(interval)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !renewed {
+		return nil, renewed, nil
+	}
+
+	lease.KeepSigned(interval)
+
+	return lease, true, nil
+}
+
 func (db *SQLDB) GetAllBuilds() ([]Build, error) {
 	rows, err := db.conn.Query(`
 		SELECT ` + qualifiedBuildColumns + `

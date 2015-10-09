@@ -38,6 +38,7 @@ import (
 	"github.com/concourse/atc/engine"
 	"github.com/concourse/atc/exec"
 	"github.com/concourse/atc/github"
+	"github.com/concourse/atc/lostandfound"
 	"github.com/concourse/atc/metric"
 	"github.com/concourse/atc/pipelines"
 	rdr "github.com/concourse/atc/radar"
@@ -397,6 +398,11 @@ func main() {
 		tracker,
 		*checkInterval,
 		engine,
+		db,
+	)
+
+	baggageCollector := lostandfound.NewBaggageCollector(
+		workerClient,
 		db,
 	)
 

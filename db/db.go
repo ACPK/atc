@@ -36,6 +36,7 @@ type DB interface {
 
 	LeaseBuildTracking(buildID int, interval time.Duration) (Lease, bool, error)
 	LeaseBuildScheduling(buildID int, interval time.Duration) (Lease, bool, error)
+	LeaseCacheInvalidation(interval time.Duration) (Lease, bool, error)
 
 	StartBuild(buildID int, engineName, engineMetadata string) (bool, error)
 	FinishBuild(buildID int, status Status) error
