@@ -404,6 +404,7 @@ func main() {
 	baggageCollector := lostandfound.NewBaggageCollector(
 		workerClient,
 		db,
+		2*time.Hour,
 	)
 
 	webHandler, err := web.NewHandler(
@@ -512,6 +513,10 @@ func main() {
 			Interval: 10 * time.Second,
 			Clock:    clock.NewClock(),
 		}},
+
+		{"baggage-collector",
+			baggageCollector.Run(logger.Session("baggage-collector")),
+		},
 	}
 
 	// register a hardcoded worker
