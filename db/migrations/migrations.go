@@ -57,5 +57,5 @@ var Migrations = []migration.Migrator{
 	AddLastScheduledToBuilds,
 	AddCheckTypeAndCheckSourceToContainers,
 	AddStepLocationToContainers,
-	AddCacheInvalidator,
+	AddVolumesAndCacheInvalidator,
 }
