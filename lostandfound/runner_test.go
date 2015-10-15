@@ -17,7 +17,7 @@ import (
 	"github.com/concourse/atc/lostandfound/fakes"
 )
 
-var _ = FDescribe("Runner", func() {
+var _ = Describe("Runner", func() {
 	var (
 		fakeDB               *fakes.FakeRunnerDB
 		fakeBaggageCollector *fakes.FakeBaggageCollector

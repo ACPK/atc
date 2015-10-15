@@ -329,6 +329,10 @@ func (worker *gardenWorker) AllSatisfying(spec WorkerSpec) ([]Worker, error) {
 	return nil, errors.New("Not implemented")
 }
 
+func (worker *gardenWorker) GetWorker(workerName string) (Worker, error) {
+	return nil, errors.New("Not implemented")
+}
+
 func (worker *gardenWorker) Description() string {
 	messages := []string{
 		fmt.Sprintf("platform '%s'", worker.platform),

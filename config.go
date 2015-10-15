@@ -1,6 +1,9 @@
 package atc
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 const ConfigVersionHeader = "X-Concourse-Config-Version"
 const DefaultPipelineName = "main"
@@ -40,6 +43,12 @@ type ResourceConfig struct {
 	Type       string `yaml:"type" json:"type" mapstructure:"type"`
 	Source     Source `yaml:"source" json:"source" mapstructure:"source"`
 	CheckEvery string `yaml:"check_every,omitempty" json:"check_every" mapstructure:"check_every"`
+}
+
+//TODO: fill in unit tests
+func (rc ResourceConfig) Hash() string {
+	source, _ := json.Marshal(rc.Source)
+	return rc.Type + string(source)
 }
 
 type JobConfig struct {

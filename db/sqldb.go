@@ -37,6 +37,99 @@ func NewSQL(
 	}
 }
 
+//TODO: add unit tests
+func (db *SQLDB) InsertVolumeData(data VolumeData) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return err
+	}
+
+	var resourceVersion []byte
+
+	resourceVersion, err = json.Marshal(data.ResourceVersion)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`
+	INSERT INTO volumes(
+    worker_name,
+		expires_at,
+		ttl,
+		handle,
+		resource_version,
+		resource_hash
+	) VALUES (
+		$1,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6
+	)
+	`, data.WorkerName,
+		data.ExpiresAt,
+		data.TTL,
+		data.Handle,
+		resourceVersion,
+		data.ResourceHash,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+type VolumeData struct {
+	WorkerName      string
+	ExpiresAt       time.Time
+	TTL             time.Duration
+	Handle          string
+	ResourceVersion atc.Version
+	ResourceHash    string
+}
+
+func (db *SQLDB) GetVolumesToExpire() ([]VolumeData, error) {
+	rows, err := db.conn.Query(`
+		SELECT v.worker_name,
+			v.expires_at,
+			v.ttl,
+			v.handle,
+			v.resource_version,
+			v.resource_hash
+		FROM volumes v
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	volumes := []VolumeData{}
+
+	for rows.Next() {
+		var volume VolumeData
+		var versionJSON []byte
+		err := rows.Scan(&volume.WorkerName, &volume.ExpiresAt, &volume.TTL, &volume.Handle, &versionJSON, &volume.ResourceHash)
+		if err != nil {
+			return nil, err
+		}
+
+		err = json.Unmarshal(versionJSON, &volume.ResourceVersion)
+		if err != nil {
+			return nil, err
+		}
+
+		volumes = append(volumes, volume)
+	}
+
+	return volumes, nil
+
+}
+
 func (db *SQLDB) GetPipelineByName(pipelineName string) (SavedPipeline, error) {
 	row := db.conn.QueryRow(`
 		SELECT id, name, config, version, paused
