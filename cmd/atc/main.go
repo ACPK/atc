@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	httpmetrics "github.com/codahale/http-handlers/metrics"
 	_ "github.com/codahale/metrics/runtime"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/felixge/tcpkeepalive"
@@ -38,55 +37,46 @@ import (
 	"github.com/concourse/atc/auth/github"
 	"github.com/concourse/atc/builds"
 	"github.com/concourse/atc/config"
-	Db "github.com/concourse/atc/db"
+	"github.com/concourse/atc/db"
 	"github.com/concourse/atc/db/migrations"
 	"github.com/concourse/atc/engine"
 	"github.com/concourse/atc/exec"
 	"github.com/concourse/atc/metric"
 	"github.com/concourse/atc/pipelines"
-	rdr "github.com/concourse/atc/radar"
+	"github.com/concourse/atc/radar"
 	"github.com/concourse/atc/resource"
-	sched "github.com/concourse/atc/scheduler"
+	"github.com/concourse/atc/scheduler"
 	"github.com/concourse/atc/web/webhandler"
 	"github.com/concourse/atc/worker"
 	"github.com/concourse/atc/wrappa"
 )
 
-var pipelinePath = flag.String(
-	"pipeline",
-	"",
-	"path to atc pipeline config .yml",
-)
+type ATCCommand struct {
+	PostgresURL URLFlag `long:"postgresql-url" default:"postgres://127.0.0.1:5432/atc?sslmode=disable" description:"PostgreSQL connection string"`
 
-var templatesDir = flag.String(
-	"templates",
-	"./web/templates",
-	"path to directory containing the html templates",
-)
+	TemplatesDir DirectoryFlag `long:"templates" default:"./web/templates" description:"path to directory containing the html templates"`
+	PublicDir    DirectoryFlag `long:"public"    default:"./web/public"    description:"path to directory containing the html resources (js, css, etc.)"`
 
-var publicDir = flag.String(
-	"public",
-	"./web/public",
-	"path to directory containing public resources (javascript, css, etc.)",
-)
+	GardenURL       URLFlag `long:"garden-url"       description:"a Garden API endpoint to register as a worker."`
+	BaggageclaimURL URLFlag `long:"baggageclaim-url" description:"a Baggageclaim API endpoint to register with the worker."`
 
-var gardenNetwork = flag.String(
-	"gardenNetwork",
-	"",
-	"garden API network type (tcp/unix). leave empty for dynamic registration.",
-)
+	BindIP   IPFlag `long:"bind-ip"   default:"0.0.0.0" description:"IP address on which to listen for web traffic."`
+	BindPort uint16 `long:"bind-port" default:"8080"    description:"Port on which to listen for web traffic."`
 
-var gardenAddr = flag.String(
-	"gardenAddr",
-	"",
-	"garden API network address (host:port or socket path). leave empty for dynamic registration.",
-)
+	PeerURL URLFlag `long:"peer-ip" default:"http://127.0.0.1:8080" description:"URL used to reach this ATC from other ATCs in the cluster"`
 
-var baggageclaimURL = flag.String(
-	"baggageclaimURL",
-	"",
-	"baggageclaim API endpoint. leave empty for dynamic registration.",
-)
+	DebugIP   IPFlag `long:"debug-ip"   description:"IP address on which to listen for the pprof debugger endpoints."`
+	DebugPort uint16 `long:"debug-port" description:"Port on which to listen for the pprof debugger endpoints."`
+
+	BasicAuthUsername string `long:"basic-auth-username" description:"Username to use for basic auth."`
+	BasicAuthPassword string `long:"basic-auth-password" description:"Password to use for basic auth."`
+
+	GitHubAuthClientID     string `long:"github-auth-client-id"     description:"Application client ID for enabling GitHub OAuth."`
+	GitHubAuthClientSecret string `long:"github-auth-client-secret" description:"Application client secret for enabling GitHub OAuth."`
+	GitHubAuthOrganization string `long:"github-auth-organization"  description:"GitHub organization whose members will have access."`
+
+	ResourceCheckingInterval time.Duration `long:"resource-checking-interval" description:"Interval on which to check for new versions."`
+}
 
 var resourceTypes = flag.String(
 	"resourceTypes",
@@ -104,82 +94,10 @@ var resourceTypes = flag.String(
 	"map of resource type to its rootfs",
 )
 
-var sqlDriver = flag.String(
-	"sqlDriver",
-	"postgres",
-	"database/sql driver name",
-)
-
-var sqlDataSource = flag.String(
-	"sqlDataSource",
-	"postgres://127.0.0.1:5432/atc?sslmode=disable",
-	"database/sql data source configuration string",
-)
-
-var webListenAddress = flag.String(
-	"webListenAddress",
-	"0.0.0.0",
-	"address to listen on",
-)
-
-var webListenPort = flag.Int(
-	"webListenPort",
-	8080,
-	"port for the web server to listen on",
-)
-
 var callbacksURLString = flag.String(
 	"callbacksURL",
 	"http://127.0.0.1:8080",
 	"URL used for callbacks to reach the ATC (excluding basic auth)",
-)
-
-var debugListenAddress = flag.String(
-	"debugListenAddress",
-	"127.0.0.1",
-	"address for the pprof debugger listen on",
-)
-
-var debugListenPort = flag.Int(
-	"debugListenPort",
-	8079,
-	"port for the pprof debugger to listen on",
-)
-
-var httpUsername = flag.String(
-	"httpUsername",
-	"",
-	"basic auth username for the server",
-)
-
-var httpPassword = flag.String(
-	"httpPassword",
-	"",
-	"basic auth password for the server",
-)
-
-var httpHashedPassword = flag.String(
-	"httpHashedPassword",
-	"",
-	"bcrypted basic auth password for the server",
-)
-
-var gitHubAuthClientID = flag.String(
-	"gitHubAuthClientID",
-	"",
-	"client ID to use for enabling github auth",
-)
-
-var gitHubAuthClientSecret = flag.String(
-	"gitHubAuthClientSecret",
-	"",
-	"client secret to use for enabling github auth",
-)
-
-var gitHubAuthOrg = flag.String(
-	"gitHubAuthOrg",
-	"",
-	"name of github organization a user must be a member of to be authenticated",
 )
 
 var checkInterval = flag.Duration(
@@ -315,21 +233,21 @@ func main() {
 
 	var err error
 
-	var dbConn Db.Conn
+	var dbConn db.Conn
 	dbConn, err = migrations.LockDBAndMigrate(logger.Session("db.migrations"), *sqlDriver, *sqlDataSource)
 	if err != nil {
 		panic("could not lock db and migrate: " + err.Error())
 	}
 
 	listener := pq.NewListener(*sqlDataSource, time.Second, time.Minute, nil)
-	bus := Db.NewNotificationsBus(listener, dbConn)
+	bus := db.NewNotificationsBus(listener, dbConn)
 
-	explainDBConn := Db.Explain(logger, dbConn, clock.NewClock(), 500*time.Millisecond)
-	db := Db.NewSQL(logger.Session("db"), explainDBConn, bus)
-	pipelineDBFactory := Db.NewPipelineDBFactory(logger.Session("db"), explainDBConn, bus, db)
+	explainDBConn := db.Explain(logger, dbConn, clock.NewClock(), 500*time.Millisecond)
+	sqlDB := db.NewSQL(logger.Session("db"), explainDBConn, bus)
+	pipelineDBFactory := db.NewPipelineDBFactory(logger.Session("db"), explainDBConn, bus, sqlDB)
 
-	var configDB Db.ConfigDB
-	configDB = Db.PlanConvertingConfigDB{NestedDB: db}
+	var configDB db.ConfigDB
+	configDB = db.PlanConvertingConfigDB{NestedDB: sqlDB}
 
 	var resourceTypesNG []atc.WorkerResourceType
 	err = json.Unmarshal([]byte(*resourceTypes), &resourceTypesNG)
@@ -489,9 +407,6 @@ func main() {
 		Handler: httpHandler,
 	}
 
-	httpHandler = httpmetrics.Wrap(httpHandler)
-
-	// avoid leaking per-request context
 	httpHandler = context.ClearHandler(httpHandler)
 
 	webListenAddr := fmt.Sprintf("%s:%d", *webListenAddress, *webListenPort)
@@ -501,11 +416,11 @@ func main() {
 		logger.Session("syncer"),
 		db,
 		pipelineDBFactory,
-		func(pipelineDB Db.PipelineDB) ifrit.Runner {
+		func(pipelineDB db.PipelineDB) ifrit.Runner {
 			return grouper.NewParallel(os.Interrupt, grouper.Members{
 				{
 					pipelineDB.ScopedName("radar"),
-					rdr.NewRunner(
+					radar.NewRunner(
 						logger.Session(pipelineDB.ScopedName("radar")),
 						*noop,
 						radarSchedulerFactory.BuildRadar(pipelineDB),
@@ -515,7 +430,7 @@ func main() {
 				},
 				{
 					pipelineDB.ScopedName("scheduler"),
-					&sched.Runner{
+					&scheduler.Runner{
 						Logger: logger.Session(pipelineDB.ScopedName("scheduler")),
 
 						DB: pipelineDB,
