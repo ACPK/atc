@@ -183,7 +183,7 @@ func (bc *baggageCollector) expireVolumes(resourceHashVersions resourceHashVersi
 
 		volume.Release(ttlForVol)
 
-		err = bc.db.SetVolumeTTL(volumeToExpire, ttlForVol)
+		err = bc.db.SetVolumeTTL(volumeToExpire, ttlForVol) // TODO: Test this
 		if err != nil {
 			bc.logger.Error("failed-to-update-tll-in-db", err)
 		}
