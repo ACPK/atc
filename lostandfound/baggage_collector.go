@@ -2,7 +2,6 @@ package lostandfound
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/concourse/atc/db"
@@ -84,24 +83,18 @@ func (bc *baggageCollector) getResourceHashVersions() (resourceHashVersion, erro
 				return nil, err
 			}
 
-			fmt.Printf("%+v\n", pipelineResourceVersions)
-
 			versionRank := 0
-			for i, pipelineResourceVersion := range pipelineResourceVersions {
-				fmt.Printf("VERSION %d: %+v\n", i, pipelineResourceVersion)
+			for _, pipelineResourceVersion := range pipelineResourceVersions {
 				if pipelineResourceVersion.VersionedResource.Enabled {
 
 					version, _ := json.Marshal(pipelineResourceVersion.VersionedResource.Version)
 					hashKey := string(version) + resource.GenerateResourceHash(pipelineResource.Source, pipelineResource.Type)
 
 					if rank, ok := resourceHash[hashKey]; ok {
-						fmt.Printf("EXISTING RANK: %d\n", resourceHash[hashKey])
 						resourceHash[hashKey] = min(rank, versionRank)
 					} else {
-						fmt.Printf("HAVEN'T SEEN IT BEFORE\n")
 						resourceHash[hashKey] = versionRank
 					}
-					fmt.Printf("NEW RANK: %d\n", resourceHash[hashKey])
 
 					versionRank++
 				}
@@ -109,7 +102,6 @@ func (bc *baggageCollector) getResourceHashVersions() (resourceHashVersion, erro
 		}
 	}
 
-	fmt.Printf("%+v\n", resourceHash)
 	return resourceHash, nil
 }
 
@@ -182,7 +174,6 @@ func (bc *baggageCollector) expireVolumes(resourceHashVersions resourceHashVersi
 		}
 
 		volume.Release(ttlForVol)
-		fmt.Printf("SETTING TTL FOR VERION %s TO %+v\n", volumeToExpire.ResourceVersion["version"], ttlForVol)
 		err = bc.db.SetVolumeTTL(volumeToExpire, ttlForVol) // TODO: Test this
 		if err != nil {
 			bc.logger.Error("failed-to-update-tll-in-db", err)

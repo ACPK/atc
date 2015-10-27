@@ -421,53 +421,6 @@ var _ = Describe("Baggage Collector", func() {
 				},
 			}),
 
-			Entry("it deletes expired volumes as the first step of lookup", baggageCollectionExample{
-				pipelineData: map[string][]resourceConfigAndVersions{
-					"pipeline-a": []resourceConfigAndVersions{
-						{
-							config: atc.ResourceConfig{
-								Name: "resource-a",
-								Type: "some-a-type",
-								Source: atc.Source{
-									"some": "a-source",
-								},
-							},
-							versions: []atc.Version{
-								{"version": "expired"},
-								{"version": "older"},
-								{"version": "latest"},
-							},
-						},
-					},
-				},
-				volumeData: []db.Volume{
-					{
-						WorkerName:      "some-worker",
-						TTL:             24 * time.Hour,
-						Handle:          "some-volume-handle-2",
-						ResourceVersion: atc.Version{"version": "latest"},
-						ResourceHash:    `some-a-type{"some":"a-source"}`,
-					},
-					{
-						WorkerName:      "some-worker",
-						TTL:             24 * time.Hour,
-						Handle:          "some-volume-handle-1",
-						ResourceVersion: atc.Version{"version": "older"},
-						ResourceHash:    `some-a-type{"some":"a-source"}`,
-					},
-					{
-						WorkerName:      "some-worker",
-						TTL:             -time.Hour,
-						Handle:          "some-volume-handle-3",
-						ResourceVersion: atc.Version{"version": "expired"},
-						ResourceHash:    `some-a-type{"some":"a-source"}`,
-					},
-				},
-				expectedTTLs: map[string]time.Duration{
-					"some-volume-handle-1": 8 * time.Hour,
-				},
-			}),
-
 			Entry("updates the db with the new ttl so that the next collection has the new ttl values", baggageCollectionExample{
 				pipelineData: map[string][]resourceConfigAndVersions{
 					"pipeline-a": []resourceConfigAndVersions{
