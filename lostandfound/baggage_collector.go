@@ -182,7 +182,7 @@ func (bc *baggageCollector) expireVolumes(resourceHashVersions resourceHashVersi
 		}
 
 		volume.Release(ttlForVol)
-
+		fmt.Printf("SETTING TTL FOR VERION %s TO %+v\n", volumeToExpire.ResourceVersion["version"], ttlForVol)
 		err = bc.db.SetVolumeTTL(volumeToExpire, ttlForVol) // TODO: Test this
 		if err != nil {
 			bc.logger.Error("failed-to-update-tll-in-db", err)

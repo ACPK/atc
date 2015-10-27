@@ -36,7 +36,7 @@ var _ = Describe("Baggage Collector", func() {
 		type resourceConfigAndVersions struct {
 			config            atc.ResourceConfig
 			versions          []atc.Version
-			versionsToDisable []atc.Version
+			versionsToDisable []int
 		}
 
 		type baggageCollectionExample struct {
@@ -82,14 +82,23 @@ var _ = Describe("Baggage Collector", func() {
 
 						fakePipelineDB := new(dbfakes.FakePipelineDB)
 
-						resourceVersions := make(map[string][]*db.VersionHistory)
+						fakePipelineDB.GetResourceHistoryMaxIDReturns(42, nil)
 
+						resourceVersions := make(map[string][]*db.VersionHistory)
 						for _, resourceInfo := range data {
+							enabled := make([]bool, len(resourceInfo.versions))
+							for i, _ := range enabled {
+								enabled[i] = true
+							}
+							for _, i := range resourceInfo.versionsToDisable {
+								enabled[i] = false
+							}
+
 							var history []*db.VersionHistory
-							for i := len(resourceInfo.versions) - 1; i >= 0; i-- {
+							for i := len(resourceInfo.versions) - 1; i >= len(resourceInfo.versions)-5 && i >= 0; i-- {
 								history = append(history, &db.VersionHistory{
 									VersionedResource: db.SavedVersionedResource{
-										Enabled: true,
+										Enabled: enabled[i],
 										VersionedResource: db.VersionedResource{
 											Version: db.Version(resourceInfo.versions[i]),
 										},
@@ -98,8 +107,10 @@ var _ = Describe("Baggage Collector", func() {
 							}
 							resourceVersions[resourceInfo.config.Name] = history
 						}
-
 						fakePipelineDB.GetResourceHistoryCursorStub = func(resource string, startingID int, searchUpwards bool, numResults int) ([]*db.VersionHistory, bool, error) {
+							Expect(startingID).To(Equal(42))
+							Expect(searchUpwards).To(BeFalse())
+							Expect(numResults).To(Equal(5))
 							return resourceVersions[resource], false, nil
 						}
 
@@ -294,9 +305,7 @@ var _ = Describe("Baggage Collector", func() {
 								{"version": "older-disabled-version"},
 								{"version": "latest"},
 							},
-							versionsToDisable: []atc.Version{
-								{"version": "older-disabled-version"},
-							},
+							versionsToDisable: []int{1},
 						},
 					},
 				},
@@ -425,11 +434,8 @@ var _ = Describe("Baggage Collector", func() {
 							},
 							versions: []atc.Version{
 								{"version": "expired"},
-								{"version": "older"}, // TODO: Fix this
+								{"version": "older"},
 								{"version": "latest"},
-							},
-							versionsToDisable: []atc.Version{
-								{"version": "older-disabled-version"},
 							},
 						},
 					},
