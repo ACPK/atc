@@ -66,7 +66,6 @@ var _ = Describe("Baggage Collector", func() {
 					fakePipelineDBs := make(map[string]*dbfakes.FakePipelineDB)
 
 					for name, data := range example.pipelineData {
-						// var pipelineDB db.PipelineDB
 						config := atc.Config{}
 
 						for _, resourceData := range data {
