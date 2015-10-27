@@ -2,6 +2,7 @@ package lostandfound
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/concourse/atc/db"
@@ -12,6 +13,8 @@ import (
 )
 
 const NoRelevantVersionsTTL = 10 * time.Minute
+
+//go:generate counterfeiter . BaggageCollectorDB
 
 type BaggageCollectorDB interface {
 	GetAllActivePipelines() ([]db.SavedPipeline, error)
@@ -81,18 +84,24 @@ func (bc *baggageCollector) getResourceHashVersions() (resourceHashVersion, erro
 				return nil, err
 			}
 
+			fmt.Printf("%+v\n", pipelineResourceVersions)
+
 			versionRank := 0
-			for _, pipelineResourceVersion := range pipelineResourceVersions {
+			for i, pipelineResourceVersion := range pipelineResourceVersions {
+				fmt.Printf("VERSION %d: %+v\n", i, pipelineResourceVersion)
 				if pipelineResourceVersion.VersionedResource.Enabled {
 
 					version, _ := json.Marshal(pipelineResourceVersion.VersionedResource.Version)
 					hashKey := string(version) + resource.GenerateResourceHash(pipelineResource.Source, pipelineResource.Type)
 
 					if rank, ok := resourceHash[hashKey]; ok {
+						fmt.Printf("EXISTING RANK: %d\n", resourceHash[hashKey])
 						resourceHash[hashKey] = min(rank, versionRank)
 					} else {
+						fmt.Printf("HAVEN'T SEEN IT BEFORE\n")
 						resourceHash[hashKey] = versionRank
 					}
+					fmt.Printf("NEW RANK: %d\n", resourceHash[hashKey])
 
 					versionRank++
 				}
@@ -100,6 +109,7 @@ func (bc *baggageCollector) getResourceHashVersions() (resourceHashVersion, erro
 		}
 	}
 
+	fmt.Printf("%+v\n", resourceHash)
 	return resourceHash, nil
 }
 
