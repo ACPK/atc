@@ -32,9 +32,8 @@ type PipelineDB interface {
 	LeaseScheduling(time.Duration) (Lease, bool, error)
 
 	GetResource(resourceName string) (SavedResource, error)
-	GetResourceHistory(resource string) ([]*VersionHistory, error)
-	GetResourceHistoryCursor(resource string, startingID int, searchUpwards bool, numResults int) ([]*VersionHistory, bool, error)
-	GetResourceHistoryMaxID(resourceID int) (int, error)
+	GetResourceHistory(resource string, page Page) ([]*VersionHistory, Pagination, error)
+
 	PauseResource(resourceName string) error
 	UnpauseResource(resourceName string) error
 
@@ -353,9 +352,61 @@ func (pdb *pipelineDB) LeaseScheduling(interval time.Duration) (Lease, bool, err
 	return lease, true, nil
 }
 
-func (pdb *pipelineDB) GetResourceHistory(resourceName string) ([]*VersionHistory, error) {
-	versionHistories, _, err := pdb.GetResourceHistoryCursor(resourceName, 0, true, 0)
-	return versionHistories, err
+func (pdb *pipelineDB) GetResourceHistory(resourceName string, page Page) ([]*VersionHistory, Pagination, error) {
+	dbResource, err := pdb.GetResource(resourceName)
+	if err != nil {
+		return []*VersionHistory{}, Pagination{}, err
+	}
+
+	var rows *sql.Rows
+	if page.Since == 0 && page.Until == 0 {
+		// TODO: Why do the inner and outer queries both have ORDER BY?
+		rows, err = pdb.conn.Query(`
+			SELECT sub.*
+			FROM (
+				SELECT v.id, v.enabled, v.type, v.version, v.metadata, r.name
+				FROM versioned_resources v
+				INNER JOIN resources r ON v.resource_id = r.id
+				WHERE v.resource_id = $1
+				ORDER BY v.id DESC
+			) sub
+			ORDER BY sub.ID DESC
+			LIMIT $2
+		`, dbResource.ID, page.Limit)
+		if err != nil {
+			return nil, Pagination{}, err
+		}
+	}
+
+	defer rows.Close()
+
+	vhs := make([]*VersionHistory, 0)
+	for rows.Next() {
+		var svr SavedVersionedResource
+
+		var versionString, metadataString string
+
+		err := rows.Scan(&svr.ID, &svr.Enabled, &svr.Type, &versionString, &metadataString, &svr.Resource)
+		if err != nil {
+			return nil, Pagination{}, err
+		}
+
+		err = json.Unmarshal([]byte(versionString), &svr.Version)
+		if err != nil {
+			return nil, Pagination{}, err
+		}
+
+		err = json.Unmarshal([]byte(metadataString), &svr.Metadata)
+		if err != nil {
+			return nil, Pagination{}, err
+		}
+
+		vhs = append(vhs, &VersionHistory{
+			VersionedResource: svr,
+		})
+	}
+
+	return vhs, Pagination{}, nil
 }
 
 func (pdb *pipelineDB) GetResourceHistoryCursor(resourceName string, startingID int, greaterThanStartingID bool, numResults int) ([]*VersionHistory, bool, error) {
