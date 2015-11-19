@@ -33,6 +33,8 @@ type PipelineDB interface {
 
 	GetResource(resourceName string) (SavedResource, error)
 	GetResourceVersions(resourceName string, page Page) ([]SavedVersionedResource, Pagination, error)
+	GetResourceHistoryCursor(resource string, startingID int, searchUpwards bool, numResults int) ([]*VersionHistory, bool, error)
+	GetResourceHistoryMaxID(resourceID int) (int, error)
 
 	PauseResource(resourceName string) error
 	UnpauseResource(resourceName string) error
