@@ -73,6 +73,8 @@ type PipelineDB interface {
 	ScheduleBuild(buildID int, job atc.JobConfig) (bool, error)
 	SaveBuildInput(buildID int, input BuildInput) (SavedVersionedResource, error)
 	SaveBuildOutput(buildID int, vr VersionedResource, explicit bool) (SavedVersionedResource, error)
+	GetBuildsWithVersionAsInput(versionedResourceID int) ([]Build, error)
+	GetBuildsWithVersionAsOutput(versionedResourceID int) ([]Build, error)
 }
 
 type pipelineDB struct {
@@ -1201,6 +1203,60 @@ func (pdb *pipelineDB) createJobBuild(jobName string, tx *sql.Tx) (Build, error)
 	}
 
 	return build, nil
+}
+
+func (pdb *pipelineDB) GetBuildsWithVersionAsInput(versionedResourceID int) ([]Build, error) {
+	rows, err := pdb.conn.Query(`
+		SELECT `+qualifiedBuildColumns+`
+		FROM builds b
+		INNER JOIN jobs j ON b.job_id = j.id
+		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN build_inputs bi ON bi.build_id = b.id
+		WHERE bi.versioned_resource_id = $1
+	`, versionedResourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	builds := []Build{}
+	for rows.Next() {
+		build, _, err := pdb.scanBuild(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		builds = append(builds, build)
+	}
+
+	return builds, err
+}
+
+func (pdb *pipelineDB) GetBuildsWithVersionAsOutput(versionedResourceID int) ([]Build, error) {
+	rows, err := pdb.conn.Query(`
+		SELECT `+qualifiedBuildColumns+`
+		FROM builds b
+		INNER JOIN jobs j ON b.job_id = j.id
+		INNER JOIN pipelines p ON j.pipeline_id = p.id
+		INNER JOIN build_outputs bo ON bo.build_id = b.id
+		WHERE bo.versioned_resource_id = $1
+	`, versionedResourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	builds := []Build{}
+	for rows.Next() {
+		build, _, err := pdb.scanBuild(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		builds = append(builds, build)
+	}
+
+	return builds, err
 }
 
 func (pdb *pipelineDB) SaveBuildInput(buildID int, input BuildInput) (SavedVersionedResource, error) {
