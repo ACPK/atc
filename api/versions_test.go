@@ -36,14 +36,6 @@ var _ = Describe("Versions API", func() {
 
 		})
 
-		It("returns 200 ok", func() {
-			Expect(response.StatusCode).To(Equal(http.StatusOK))
-		})
-
-		It("returns content type application/json", func() {
-			Expect(response.Header.Get("Content-type")).To(Equal("application/json"))
-		})
-
 		Context("when no params are passed", func() {
 			It("does not set defaults for since and until", func() {
 				Expect(pipelineDB.GetResourceVersionsCallCount()).To(Equal(1))
@@ -118,11 +110,15 @@ var _ = Describe("Versions API", func() {
 					},
 				}
 
-				pipelineDB.GetResourceVersionsReturns(returnedVersions, db.Pagination{}, nil)
+				pipelineDB.GetResourceVersionsReturns(returnedVersions, db.Pagination{}, true, nil)
 			})
 
 			It("returns 200 OK", func() {
 				Expect(response.StatusCode).To(Equal(http.StatusOK))
+			})
+
+			It("returns content type application/json", func() {
+				Expect(response.Header.Get("Content-type")).To(Equal("application/json"))
 			})
 
 			It("returns the json", func() {
@@ -165,7 +161,7 @@ var _ = Describe("Versions API", func() {
 					pipelineDB.GetResourceVersionsReturns(returnedVersions, db.Pagination{
 						Previous: &db.Page{Until: 4, Limit: 2},
 						Next:     &db.Page{Since: 2, Limit: 2},
-					}, nil)
+					}, true, nil)
 				})
 
 				It("returns Link headers per rfc5988", func() {
@@ -177,9 +173,19 @@ var _ = Describe("Versions API", func() {
 			})
 		})
 
+		Context("when the versions can't be found", func() {
+			BeforeEach(func() {
+				pipelineDB.GetResourceVersionsReturns(nil, db.Pagination{}, false, nil)
+			})
+
+			It("returns 404 not found", func() {
+				Expect(response.StatusCode).To(Equal(http.StatusNotFound))
+			})
+		})
+
 		Context("when getting the versions fails", func() {
 			BeforeEach(func() {
-				pipelineDB.GetResourceVersionsReturns(nil, db.Pagination{}, errors.New("oh no!"))
+				pipelineDB.GetResourceVersionsReturns(nil, db.Pagination{}, false, errors.New("oh no!"))
 			})
 
 			It("returns 500 Internal Server Error", func() {

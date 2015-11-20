@@ -92,19 +92,19 @@ var _ = Describe("Resource History", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		Context("when there are no versions to be found", func() {
-			It("returns the versions, with previous/next pages", func() {
-				historyPage, pagination, err := pipelineDB.GetResourceVersions("nope", db.Page{})
+		Context("when the resource does not exist", func() {
+			It("returns false and no error", func() {
+				_, _, found, err := pipelineDB.GetResourceVersions("nope", db.Page{})
 				Expect(err).ToNot(HaveOccurred())
-				Expect(historyPage).To(Equal([]db.SavedVersionedResource{}))
-				Expect(pagination).To(Equal(db.Pagination{}))
+				Expect(found).To(BeFalse())
 			})
 		})
 
 		Context("with no since/until", func() {
 			It("returns the first page, with the given limit, and a next page", func() {
-				historyPage, pagination, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Limit: 2})
+				historyPage, pagination, found, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Limit: 2})
 				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
 				Expect(historyPage).To(Equal([]db.SavedVersionedResource{expectedVersions[9], expectedVersions[8]}))
 				Expect(pagination.Previous).To(BeNil())
 				Expect(pagination.Next).To(Equal(&db.Page{Since: expectedVersions[8].ID, Limit: 2}))
@@ -113,8 +113,9 @@ var _ = Describe("Resource History", func() {
 
 		Context("with a since that places it in the middle of the builds", func() {
 			It("returns the builds, with previous/next pages", func() {
-				historyPage, pagination, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Since: expectedVersions[6].ID, Limit: 2})
+				historyPage, pagination, found, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Since: expectedVersions[6].ID, Limit: 2})
 				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
 				Expect(historyPage).To(Equal([]db.SavedVersionedResource{expectedVersions[5], expectedVersions[4]}))
 				Expect(pagination.Previous).To(Equal(&db.Page{Until: expectedVersions[5].ID, Limit: 2}))
 				Expect(pagination.Next).To(Equal(&db.Page{Since: expectedVersions[4].ID, Limit: 2}))
@@ -123,8 +124,9 @@ var _ = Describe("Resource History", func() {
 
 		Context("with a since that places it at the end of the builds", func() {
 			It("returns the builds, with previous/next pages", func() {
-				historyPage, pagination, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Since: expectedVersions[2].ID, Limit: 2})
+				historyPage, pagination, found, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Since: expectedVersions[2].ID, Limit: 2})
 				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
 				Expect(historyPage).To(Equal([]db.SavedVersionedResource{expectedVersions[1], expectedVersions[0]}))
 				Expect(pagination.Previous).To(Equal(&db.Page{Until: expectedVersions[1].ID, Limit: 2}))
 				Expect(pagination.Next).To(BeNil())
@@ -133,8 +135,9 @@ var _ = Describe("Resource History", func() {
 
 		Context("with an until that places it in the middle of the builds", func() {
 			It("returns the builds, with previous/next pages", func() {
-				historyPage, pagination, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Until: expectedVersions[6].ID, Limit: 2})
+				historyPage, pagination, found, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Until: expectedVersions[6].ID, Limit: 2})
 				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
 				Expect(historyPage).To(Equal([]db.SavedVersionedResource{expectedVersions[8], expectedVersions[7]}))
 				Expect(pagination.Previous).To(Equal(&db.Page{Until: expectedVersions[8].ID, Limit: 2}))
 				Expect(pagination.Next).To(Equal(&db.Page{Since: expectedVersions[7].ID, Limit: 2}))
@@ -143,8 +146,9 @@ var _ = Describe("Resource History", func() {
 
 		Context("with a until that places it at the beginning of the builds", func() {
 			It("returns the builds, with previous/next pages", func() {
-				historyPage, pagination, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Until: expectedVersions[7].ID, Limit: 2})
+				historyPage, pagination, found, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Until: expectedVersions[7].ID, Limit: 2})
 				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
 				Expect(historyPage).To(Equal([]db.SavedVersionedResource{expectedVersions[9], expectedVersions[8]}))
 				Expect(pagination.Previous).To(BeNil())
 				Expect(pagination.Next).To(Equal(&db.Page{Since: expectedVersions[8].ID, Limit: 2}))
@@ -168,8 +172,9 @@ var _ = Describe("Resource History", func() {
 			})
 
 			It("returns the metadata in the version history", func() {
-				historyPage, _, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Limit: 1})
+				historyPage, _, found, err := pipelineDB.GetResourceVersions("some-resource", db.Page{Limit: 1})
 				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
 				Expect(historyPage).To(Equal([]db.SavedVersionedResource{expectedVersions[9]}))
 			})
 		})
