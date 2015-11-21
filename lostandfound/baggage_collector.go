@@ -2,6 +2,7 @@ package lostandfound
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/concourse/atc/db"
@@ -66,8 +67,14 @@ func (bc *baggageCollector) getResourceHashVersions() (resourceHashVersion, erro
 		pipelineResources := pipeline.Config.Resources
 
 		for _, pipelineResource := range pipelineResources {
-			pipelineResourceVersions, _, err := pipelineDB.GetResourceVersions(pipelineResource.Name, db.Page{Limit: 5})
+			pipelineResourceVersions, _, found, err := pipelineDB.GetResourceVersions(pipelineResource.Name, db.Page{Limit: 5})
 			if err != nil {
+				bc.logger.Error("could-not-get-resource-history", err)
+				return nil, err
+			}
+
+			if !found {
+				err := errors.New("resource not found")
 				bc.logger.Error("could-not-get-resource-history", err)
 				return nil, err
 			}

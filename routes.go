@@ -27,9 +27,10 @@ const (
 	PauseResource   = "PauseResource"
 	UnpauseResource = "UnpauseResource"
 
-	ListResourceVersions   = "ListResourceVersions"
-	EnableResourceVersion  = "EnableResourceVersion"
-	DisableResourceVersion = "DisableResourceVersion"
+	ListResourceVersions         = "ListResourceVersions"
+	EnableResourceVersion        = "EnableResourceVersion"
+	DisableResourceVersion       = "DisableResourceVersion"
+	ListBuildsWithVersionAsInput = "ListBuildsWithVersionAsInput"
 
 	ListPipelines   = "ListPipelines"
 	GetPipeline     = "GetPipeline"
@@ -95,6 +96,7 @@ var Routes = rata.Routes{
 	{Path: "/api/v1/pipelines/:pipeline_name/resources/:resource_name/versions", Method: "GET", Name: ListResourceVersions},
 	{Path: "/api/v1/pipelines/:pipeline_name/resources/:resource_name/versions/:resource_version_id/enable", Method: "PUT", Name: EnableResourceVersion},
 	{Path: "/api/v1/pipelines/:pipeline_name/resources/:resource_name/versions/:resource_version_id/disable", Method: "PUT", Name: DisableResourceVersion},
+	{Path: "/api/v1/pipelines/:pipeline_name/resources/:resource_name/versions/:resource_version_id/inputs_to", Method: "GET", Name: ListBuildsWithVersionAsInput},
 
 	{Path: "/api/v1/pipes", Method: "POST", Name: CreatePipe},
 	{Path: "/api/v1/pipes/:pipe_id", Method: "PUT", Name: WritePipe},
