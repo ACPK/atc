@@ -13,6 +13,7 @@ import (
 
 const resourceCacheTTL = 24 * time.Hour
 const reapExtraVolumeTTL = time.Minute
+const versionlessCacheTTL = 5 * time.Minute
 
 //go:generate counterfeiter . CacheIdentifier
 
@@ -48,9 +49,13 @@ func (identifier ResourceCacheIdentifier) FindOn(logger lager.Logger, vm baggage
 }
 
 func (identifier ResourceCacheIdentifier) CreateOn(logger lager.Logger, vm baggageclaim.Client) (baggageclaim.Volume, error) {
+	ttl := resourceCacheTTL
+	if identifier.Version == nil {
+		ttl = versionlessCacheTTL
+	}
 	return vm.CreateVolume(logger, baggageclaim.VolumeSpec{
 		Properties: identifier.volumeProperties(),
-		TTL:        resourceCacheTTL,
+		TTL:        ttl,
 		Privileged: true,
 	})
 }
